@@ -81,12 +81,15 @@ class DisplayManager:
         """Calcule le zoom et les bandes noires"""
         scr_w, scr_h = self.screen.get_size()
 
-        # Calcul du facteur de zoom (on garde le ratio)
-        self.scale = min(scr_w / GAME_W, scr_h / GAME_H)
+        # On garde un zoom entier pour éviter le flou du pixel art.
+        # Si la fenêtre n'est pas un multiple entier, on ajoute des bandes noires.
+        scale_w = scr_w // GAME_W
+        scale_h = scr_h // GAME_H
+        self.scale = max(1, min(scale_w, scale_h))
 
-        # Nouvelle taille du canvas étiré
-        self.new_w = int(GAME_W * self.scale)
-        self.new_h = int(GAME_H * self.scale)
+        # Nouvelle taille du canvas étiré (entier)
+        self.new_w = GAME_W * self.scale
+        self.new_h = GAME_H * self.scale
 
         # Calcul du centrage (offset)
         self.dx = (scr_w - self.new_w) // 2

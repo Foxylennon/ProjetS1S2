@@ -94,10 +94,10 @@ def game(dm):
         player.draw(dm.canvas)
         
         # HUD
-        pv_text = font.render(f"PV: {player.health}/{player.max_health}", True, (255, 255, 255))
+        pv_text = font.render(f"PV: {player.health}/{player.max_health}", False, (255, 255, 255))
         dm.canvas.blit(pv_text, (12, 12))
         
-        controls = font.render("ESPACE=Attaque  ESC=Menu", True, (150, 150, 150))
+        controls = font.render("ESPACE=Attaque  ESC=Menu", False, (150, 150, 150))
         dm.canvas.blit(controls, (150, 160))
         
         # Game Over
@@ -107,7 +107,7 @@ def game(dm):
             overlay.set_alpha(150)
             dm.canvas.blit(overlay, (0, 0))
             
-            go_text = font_big.render("GAME OVER", True, (255, 50, 50))
+            go_text = font_big.render("GAME OVER", False, (255, 50, 50))
             dm.canvas.blit(go_text, go_text.get_rect(center=(160, 80)))
         
         # Victoire
@@ -117,7 +117,7 @@ def game(dm):
             overlay.set_alpha(150)
             dm.canvas.blit(overlay, (0, 0))
             
-            win_text = font_big.render("VICTOIRE !", True, (50, 255, 50))
+            win_text = font_big.render("VICTOIRE !", False, (50, 255, 50))
             dm.canvas.blit(win_text, win_text.get_rect(center=(160, 80)))
         
         dm.render()

@@ -89,22 +89,22 @@ def game_multiplayer(dm, network):
         
         # HUD
         role = "HOST" if network.is_host else "CLIENT"
-        dm.canvas.blit(font.render(role, True, (255, 255, 255)), (12, 12))
-        dm.canvas.blit(font.render(f"PV: {player.health}", True, (255, 255, 255)), (12, 25))
+        dm.canvas.blit(font.render(role, False, (255, 255, 255)), (12, 12))
+        dm.canvas.blit(font.render(f"PV: {player.health}", False, (255, 255, 255)), (12, 25))
         
         if game_over:
             overlay = pygame.Surface((320, 180))
             overlay.fill((0, 0, 0))
             overlay.set_alpha(150)
             dm.canvas.blit(overlay, (0, 0))
-            dm.canvas.blit(font_big.render("GAME OVER", True, (255, 50, 50)), (110, 80))
+            dm.canvas.blit(font_big.render("GAME OVER", False, (255, 50, 50)), (110, 80))
         
         if victory:
             overlay = pygame.Surface((320, 180))
             overlay.fill((0, 0, 0))
             overlay.set_alpha(150)
             dm.canvas.blit(overlay, (0, 0))
-            dm.canvas.blit(font_big.render("VICTOIRE !", True, (50, 255, 50)), (115, 80))
+            dm.canvas.blit(font_big.render("VICTOIRE !", False, (50, 255, 50)), (115, 80))
         
         dm.render()
         

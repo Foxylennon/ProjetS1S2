@@ -31,7 +31,7 @@ class Button:
         pygame.draw.rect(surface, (150, 150, 150), self.rect, 2, border_radius=5)
         
         # Texte centré
-        text_surf = font.render(self.text, True, (255, 255, 255))
+        text_surf = font.render(self.text, False, (255, 255, 255))
         text_rect = text_surf.get_rect(center=self.rect.center)
         surface.blit(text_surf, text_rect)
     
@@ -97,7 +97,7 @@ def main_menu(dm):
         dm.canvas.fill((40, 40, 40))
         
         # Titre
-        title = font_big.render("MON SUPER JEU", True, (255, 255, 255))
+        title = font_big.render("MON SUPER JEU", False, (255, 255, 255))
         title_rect = title.get_rect(center=(160, 25))
         dm.canvas.blit(title, title_rect)
         
