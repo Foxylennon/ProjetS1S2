@@ -36,8 +36,8 @@ class Enemy:
             base_angle = math.atan2(diff_y, diff_x)
             jitter = random.uniform(-math.pi / 9, math.pi / 9)  # +/- 20°
             angle = base_angle + jitter
-            dx = math.cos(angle) * self.speed *2 
-            dy = math.sin(angle) * self.speed *2
+            dx = math.cos(angle) * self.speed 
+            dy = math.sin(angle) * self.speed 
 
         if walls is not None and (dx != 0 or dy != 0):
             dx_try, dy_try = check_wall_collision(self.rect, walls, dx, dy)
