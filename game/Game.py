@@ -66,8 +66,11 @@ def game(dm):
                         game_over = True
                 
                 if player.check_attack_hit(enemy.rect,walls):
-                    if enemy.take_damage(player.attack_damage):
-                        victory = True
+                    enemy.take_damage(player.attack_damage)
+            
+            else:
+                victory = True
+                        
         
         # --- AFFICHAGE ---
         dm.canvas.fill((30, 30, 30))

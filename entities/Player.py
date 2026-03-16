@@ -19,7 +19,7 @@ class Player:
         self.max_health = 100
         
         # Attaque
-        self.attack_damage = 25
+        self.attack_damage = 34
         self.attack_range = 20
         self.attacking = False
         self.attack_cooldown = 0
@@ -76,19 +76,21 @@ class Player:
             return False
         
         self.attacking = True
-        self.attack_duration = 10
+        self.attack_duration = 1
         self.attack_cooldown = 30
         
         size = self.attack_range
+
+        offset = 10
         
         if self.direction == 0:  # Droite
-            self.attack_rect = pygame.Rect(self.rect.right, self.rect.centery - size//2, size, size)
+            self.attack_rect = pygame.Rect(self.rect.right - offset , self.rect.centery - size//2, size + offset, size)
         elif self.direction == 1:  # Gauche
-            self.attack_rect = pygame.Rect(self.rect.left - size, self.rect.centery - size//2, size, size)
+            self.attack_rect = pygame.Rect(self.rect.left - size , self.rect.centery - size//2, size +offset , size)
         elif self.direction == 2:  # Bas
-            self.attack_rect = pygame.Rect(self.rect.centerx - size//2, self.rect.bottom, size, size)
+            self.attack_rect = pygame.Rect(self.rect.centerx - size//2, self.rect.bottom - offset, size, size + offset)
         else:  # Haut
-            self.attack_rect = pygame.Rect(self.rect.centerx - size//2, self.rect.top - size, size, size)
+            self.attack_rect = pygame.Rect(self.rect.centerx - size//2, self.rect.top - size, size, size +offset)
         
         return True
     

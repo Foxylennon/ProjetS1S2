@@ -15,8 +15,8 @@ class Enemy:
         self.rect = pygame.Rect(x, y, width, height)
         
         self.speed = 0.8
-        self.health = 50
-        self.max_health = 50
+        self.health = 100
+        self.max_health = 100
         self.damage = 10
         self.damage_cooldown = 0
         

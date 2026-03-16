@@ -62,10 +62,12 @@ def game_multiplayer(dm, network):
                     if not player.is_alive():
                         game_over = True
                 
-                if player.check_attack_hit(enemy.rect):
-                    if enemy.take_damage(player.attack_damage):
-                        victory = True
+                if player.check_attack_hit(enemy.rect,walls):
+                    enemy.take_damage(player.attack_damage)
+            else:
+                victory = True
         
+                        
         # Réseau
         network.send_position(player.rect.x, player.rect.y)
         other_pos = network.get_other_player_pos()
