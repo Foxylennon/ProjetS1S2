@@ -18,7 +18,10 @@ def game(dm):
     player = Player(20, 20)
     
     # Ennemi - spawn en bas à droite
-    enemy = Enemy(200, 140)
+    enemy1 = Enemy(200, 140)
+    enemy2 = Enemy(230, 120)
+    enemy3 = Enemy(20, 150)
+    enemies = [enemy1,enemy2,enemy3]
     
     # Murs
     walls = create_level_walls()
@@ -57,17 +60,20 @@ def game(dm):
             player.update()
             
             # Ennemi
-            if enemy.is_alive():
-                enemy.update(player.rect, walls)
+            if enemies != []:
+                for enemy in enemies:
+                    if enemy.is_alive():
+                        enemy.update(player.rect, walls)
                 
-                if enemy.check_collision_with_player(player.rect):
-                    player.health = enemy.deal_damage_to_player(player.health)
-                    if not player.is_alive():
-                        game_over = True
+                        if enemy.check_collision_with_player(player.rect):
+                            player.health = enemy.deal_damage_to_player(player.health)
+                            if not player.is_alive():
+                                game_over = True
                 
-                if player.check_attack_hit(enemy.rect,walls):
-                    enemy.take_damage(player.attack_damage)
-            
+                        if player.check_attack_hit(enemy.rect,walls):
+                            enemy.take_damage(player.attack_damage)
+                    else:
+                        enemies.remove(enemy)
             else:
                 victory = True
                         
@@ -80,8 +86,9 @@ def game(dm):
             wall.draw(dm.canvas)
         
         # Ennemi
-        if enemy.is_alive():
-            enemy.draw(dm.canvas)
+        for enemy in enemies:
+            if enemy.is_alive():
+                enemy.draw(dm.canvas)
         
         # Joueur
         player.draw(dm.canvas)
