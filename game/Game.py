@@ -65,7 +65,7 @@ def game(dm):
                     if not player.is_alive():
                         game_over = True
                 
-                if player.check_attack_hit(enemy.rect):
+                if player.check_attack_hit(enemy.rect,walls):
                     if enemy.take_damage(player.attack_damage):
                         victory = True
         

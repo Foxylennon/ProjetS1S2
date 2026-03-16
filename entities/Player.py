@@ -103,9 +103,16 @@ class Player:
             self.attacking = False
             self.attack_rect = None
     
-    def check_attack_hit(self, enemy_rect):
+    def check_attack_hit(self, enemy_rect,Walls):
         """Vérifie si l'attaque touche."""
         if self.attacking and self.attack_rect:
+
+            point_depart = self.rect.center
+            point_arrivee = enemy_rect.center
+
+            for wall in Walls:
+                if wall.rect.clipline(point_depart,point_arrivee):
+                    return False
             return self.attack_rect.colliderect(enemy_rect)
         return False
     
