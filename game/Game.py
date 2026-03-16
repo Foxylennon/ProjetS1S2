@@ -9,6 +9,14 @@ from entities.Player import Player
 from entities.Enemy import Enemy
 from entities.Wall import create_level_walls
 
+FONT_PATH = "assets/fonts/PressStart2P-Regular.ttf"
+
+def load_font(size):
+    try:
+        return pygame.font.Font(FONT_PATH, size)
+    except Exception:
+        return pygame.font.SysFont(None, size)
+
 
 def game(dm):
     """Boucle de jeu solo."""
@@ -27,8 +35,8 @@ def game(dm):
     walls = create_level_walls()
     
     # Polices
-    font = pygame.font.SysFont(None, 16)
-    font_big = pygame.font.SysFont(None, 24)
+    font = load_font(16)
+    font_big = load_font(16)
     
     # État
     game_over = False
@@ -97,8 +105,8 @@ def game(dm):
         pv_text = font.render(f"PV: {player.health}/{player.max_health}", False, (255, 255, 255))
         dm.canvas.blit(pv_text, (12, 12))
         
-        controls = font.render("ESPACE=Attaque  ESC=Menu", False, (150, 150, 150))
-        dm.canvas.blit(controls, (150, 160))
+        #controls = font.render("ESPACE=Attaque  ESC=Menu", False, (150, 150, 150))
+        #dm.canvas.blit(controls, (150, 160))
         
         # Game Over
         if game_over:

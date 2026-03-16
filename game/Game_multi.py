@@ -7,6 +7,14 @@ from entities.Player import Player
 from entities.Enemy import Enemy
 from entities.Wall import create_level_walls
 
+FONT_PATH = "assets/fonts/PressStart2P-Regular.ttf"
+
+def load_font(size):
+    try:
+        return pygame.font.Font(FONT_PATH, size)
+    except Exception:
+        return pygame.font.SysFont(None, size)
+
 
 def game_multiplayer(dm, network):
     """Boucle de jeu multijoueur."""
@@ -24,8 +32,8 @@ def game_multiplayer(dm, network):
     other_player_rect = pygame.Rect(0, 0, 16, 16)
     other_player_color = (0, 150, 255)
     
-    font = pygame.font.SysFont(None, 16)
-    font_big = pygame.font.SysFont(None, 24)
+    font = load_font(16)
+    font_big = load_font(16)
     
     game_over = False
     victory = False

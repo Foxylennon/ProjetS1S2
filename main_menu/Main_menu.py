@@ -9,6 +9,14 @@ Menu simple sans pygame_gui - que du pygame de base.
 
 import pygame
 
+FONT_PATH = "assets/fonts/PressStart2P-Regular.ttf"
+
+def load_font(size):
+    try:
+        return pygame.font.Font(FONT_PATH, size)
+    except Exception:
+        return pygame.font.SysFont(None, size)
+
 
 class Button:
     """Bouton simple fait maison."""
@@ -47,13 +55,13 @@ def main_menu(dm):
     print("--- MENU PRINCIPAL ---")
     
     # Police
-    font_big = pygame.font.SysFont(None, 28)
-    font = pygame.font.SysFont(None, 20)
+    font_big = load_font(28)
+    font = load_font(16)
     
     # Créer les boutons
-    btn_play = Button(110, 50, 100, 30, "JOUER", color=(70, 100, 70))
-    btn_multi = Button(110, 90, 100, 30, "MULTIJOUEUR", color=(70, 70, 100))
-    btn_quit = Button(110, 130, 100, 30, "QUITTER", color=(100, 70, 70))
+    btn_play = Button(100, 50, 120, 30, "JOUER", color=(70, 100, 70))
+    btn_multi = Button(100, 90, 120, 30, "MULTIJOUEUR", color=(70, 70, 100))
+    btn_quit = Button(100, 130, 120, 30, "QUITTER", color=(100, 70, 70))
     
     buttons = [btn_play, btn_multi, btn_quit]
     
@@ -97,7 +105,7 @@ def main_menu(dm):
         dm.canvas.fill((40, 40, 40))
         
         # Titre
-        title = font_big.render("MON SUPER JEU", False, (255, 255, 255))
+        title = font_big.render("NANO", False, (255, 255, 255))
         title_rect = title.get_rect(center=(160, 25))
         dm.canvas.blit(title, title_rect)
         

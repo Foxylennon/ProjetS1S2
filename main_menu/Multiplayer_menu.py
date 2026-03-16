@@ -24,6 +24,14 @@ import pygame
 import socket
 import threading
 
+FONT_PATH = "assets/fonts/PressStart2P-Regular.ttf"
+
+def load_font(size):
+    try:
+        return pygame.font.Font(FONT_PATH, size)
+    except Exception:
+        return pygame.font.SysFont(None, size)
+
 
 def multiplayer_menu(dm, network):
     """
@@ -41,9 +49,9 @@ def multiplayer_menu(dm, network):
     # =========================================================================
     
     # Polices
-    font_big = pygame.font.SysFont(None, 24)
-    font_medium = pygame.font.SysFont(None, 18)
-    font_small = pygame.font.SysFont(None, 14)
+    font_big = load_font(24)
+    font_medium = load_font(18)
+    font_small = load_font(14)
     
     # Récupérer notre IP pour l'afficher
     try:

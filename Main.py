@@ -143,6 +143,7 @@ def main():
     pygame.init()
     pygame.display.set_caption("ProjetS1S2 - Multijoueur")
 
+
     # Création du gestionnaire d'affichage (UNE SEULE FOIS)
     display_manager = DisplayManager()
     
