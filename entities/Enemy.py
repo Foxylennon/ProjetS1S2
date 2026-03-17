@@ -9,14 +9,14 @@ from entities.Wall import check_wall_collision
 
 
 class Enemy:
-    def __init__(self, x, y, width=14, height=14):
+    def __init__(self, x, y, width=24, height=24):
         self.x = float(x)
         self.y = float(y)
         self.width = width
         self.height = height
         self.rect = pygame.Rect(x, y, width, height)
         
-        self.speed = 0.8
+        self.speed = 4.5
         self.health = 100
         self.max_health = 100
         self.damage = 10

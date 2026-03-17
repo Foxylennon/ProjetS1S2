@@ -27,23 +27,23 @@ def create_level_walls():
     
     # --- BORDURES DE L'ÉCRAN ---
     # Mur du HAUT
-    walls.append(Wall(0, 0, 320, 8))
+    walls.append(Wall(0, 0, 1280, 32))
     
     # Mur du BAS
-    walls.append(Wall(0, 172, 320, 8))
+    walls.append(Wall(0, 688, 1280, 32))
     
     # Mur de GAUCHE
-    walls.append(Wall(0, 0, 8, 180))
+    walls.append(Wall(0, 0, 32, 720))
     
     # Mur de DROITE
-    walls.append(Wall(312, 0, 8, 180))
+    walls.append(Wall(1248, 0, 32, 720))
     
     # --- OBSTACLES AU MILIEU ---
     # Obstacle horizontal au centre
-    walls.append(Wall(100, 85, 120, 10, color=(100, 70, 70)))
+    walls.append(Wall(440, 300, 200, 60, color=(100, 70, 70)))
     
     # Petit bloc en bas à droite (PAS en haut à gauche pour pas bloquer le spawn)
-    walls.append(Wall(250, 110, 30, 30, color=(100, 70, 70)))
+    walls.append(Wall(1100, 550, 70, 70, color=(100, 70, 70)))
     
     return walls
 

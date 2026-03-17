@@ -55,13 +55,17 @@ def main_menu(dm):
     print("--- MENU PRINCIPAL ---")
     
     # Police
-    font_big = load_font(28)
-    font = load_font(16)
+    font_big = load_font(56)
+    font = load_font(32)
     
     # Créer les boutons
-    btn_play = Button(100, 50, 120, 30, "JOUER", color=(70, 100, 70))
-    btn_multi = Button(100, 90, 120, 30, "MULTIJOUEUR", color=(70, 70, 100))
-    btn_quit = Button(100, 130, 120, 30, "QUITTER", color=(100, 70, 70))
+    GAME_W  = 1280
+    btn_width = 400
+    btn_height = 60
+    btn_x = (GAME_W -btn_width)//2
+    btn_play = Button(btn_x, 300, btn_width, btn_height, "JOUER", color=(70, 100, 70))
+    btn_multi = Button(btn_x, 380, btn_width, btn_height, "MULTIJOUEUR", color=(70, 70, 100))
+    btn_quit = Button(btn_x, 460, btn_width, btn_height, "QUITTER", color=(100, 70, 70))
     
     buttons = [btn_play, btn_multi, btn_quit]
     
@@ -106,7 +110,7 @@ def main_menu(dm):
         
         # Titre
         title = font_big.render("NANO", False, (255, 255, 255))
-        title_rect = title.get_rect(center=(160, 25))
+        title_rect = title.get_rect(center=(640, 180))
         dm.canvas.blit(title, title_rect)
         
         # Boutons

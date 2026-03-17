@@ -23,20 +23,20 @@ def game(dm):
     print("--- JEU SOLO ---")
     
     # Joueur - spawn en haut à gauche (LOIN des murs et obstacles)
-    player = Player(20, 20)
+    player = Player(50, 50)
     
     # Ennemi - spawn en bas à droite
-    enemy1 = Enemy(200, 140)
-    enemy2 = Enemy(230, 120)
-    enemy3 = Enemy(20, 150)
+    enemy1 = Enemy(1000, 500)
+    enemy2 = Enemy(900, 600)
+    enemy3 = Enemy(1100, 400)
     enemies = [enemy1,enemy2,enemy3]
     
     # Murs
     walls = create_level_walls()
     
     # Polices
-    font = load_font(16)
-    font_big = load_font(16)
+    font = load_font(32)
+    font_big = load_font(56)
     
     # État
     game_over = False
@@ -110,23 +110,23 @@ def game(dm):
         
         # Game Over
         if game_over:
-            overlay = pygame.Surface((320, 180))
+            overlay = pygame.Surface((1280, 720))
             overlay.fill((0, 0, 0))
             overlay.set_alpha(150)
             dm.canvas.blit(overlay, (0, 0))
             
             go_text = font_big.render("GAME OVER", False, (255, 50, 50))
-            dm.canvas.blit(go_text, go_text.get_rect(center=(160, 80)))
+            dm.canvas.blit(go_text, go_text.get_rect(center=(640, 360)))
         
         # Victoire
         if victory:
-            overlay = pygame.Surface((320, 180))
+            overlay = pygame.Surface((1280, 720))
             overlay.fill((0, 0, 0))
             overlay.set_alpha(150)
             dm.canvas.blit(overlay, (0, 0))
             
             win_text = font_big.render("VICTOIRE !", False, (50, 255, 50))
-            dm.canvas.blit(win_text, win_text.get_rect(center=(160, 80)))
+            dm.canvas.blit(win_text, win_text.get_rect(center=(640, 360)))
         
         dm.render()
         clock.tick(60)

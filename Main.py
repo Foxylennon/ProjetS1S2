@@ -30,7 +30,7 @@ from game.Game_multi import game_multiplayer
 from network.Network import Network
 
 # --- CONFIGURATION ---
-GAME_W, GAME_H = 320, 180  # Résolution virtuelle du jeu
+GAME_W, GAME_H = 1280, 720  # Résolution virtuelle du jeu
 DEFAULT_SCREEN_W, DEFAULT_SCREEN_H = 1280, 720  # Taille fenêtre de départ
 
 
@@ -81,15 +81,13 @@ class DisplayManager:
         """Calcule le zoom et les bandes noires"""
         scr_w, scr_h = self.screen.get_size()
 
-        # On garde un zoom entier pour éviter le flou du pixel art.
-        # Si la fenêtre n'est pas un multiple entier, on ajoute des bandes noires.
-        scale_w = scr_w // GAME_W
-        scale_h = scr_h // GAME_H
-        self.scale = max(1, min(scale_w, scale_h))
+        # Zoom proportionnel (float) pour utiliser toute la fenêtre
+        self.scale = min(scr_w / GAME_W, scr_h / GAME_H)
+        self.scale = max(0.01, self.scale)  # Évite division par zéro
 
-        # Nouvelle taille du canvas étiré (entier)
-        self.new_w = GAME_W * self.scale
-        self.new_h = GAME_H * self.scale
+        # Nouvelle taille du canvas étiré
+        self.new_w = int(GAME_W * self.scale)
+        self.new_h = int(GAME_H * self.scale)
 
         # Calcul du centrage (offset)
         self.dx = (scr_w - self.new_w) // 2

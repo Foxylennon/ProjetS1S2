@@ -7,20 +7,20 @@ from entities.Wall import check_wall_collision
 
 
 class Player:
-    def __init__(self, x, y, width=16, height=16):
+    def __init__(self, x, y, width=32, height=32):
         self.x = float(x)
         self.y = float(y)
         self.width = width
         self.height = height
         self.rect = pygame.Rect(x, y, width, height)
         
-        self.speed = 2
+        self.speed = 5
         self.health = 100
         self.max_health = 100
         
         # Attaque
         self.attack_damage = 34
-        self.attack_range = 20
+        self.attack_range = 40
         self.attacking = False
         self.attack_cooldown = 0
         self.attack_duration = 0
@@ -63,8 +63,8 @@ class Player:
         self.y += dy
         
         # Limites de l'écran
-        self.x = max(0, min(self.x, 320 - self.width))
-        self.y = max(0, min(self.y, 180 - self.height))
+        self.x = max(0, min(self.x, 1280 - self.width))
+        self.y = max(0, min(self.y, 720 - self.height))
         
         # Mettre à jour le rectangle
         self.rect.x = int(self.x)
