@@ -43,7 +43,7 @@ def create_level_walls():
     walls.append(Wall(100, 85, 120, 10, color=(100, 70, 70)))
     
     # Petit bloc en bas à droite (PAS en haut à gauche pour pas bloquer le spawn)
-    walls.append(Wall(250, 130, 30, 30, color=(100, 70, 70)))
+    walls.append(Wall(250, 110, 30, 30, color=(100, 70, 70)))
     
     return walls
 
