@@ -237,7 +237,7 @@ def multiplayer_menu(dm, network):
         # --- Section HOST ---
         
         # Bouton Host
-        btn_host.text = "En attente..." if waiting_for_client else "Créer partie"
+        btn_host.text = "En attente..." if waiting_for_client else "Creer partie"
         btn_host.color = (80, 80, 80) if waiting_for_client else (70, 130, 70)
         btn_host.hover_color = (120, 120, 120) if waiting_for_client else (90, 170, 90)
         btn_host.draw(dm.canvas, font_small)

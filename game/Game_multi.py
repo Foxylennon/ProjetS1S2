@@ -32,8 +32,8 @@ def game_multiplayer(dm, network):
     other_player_rect = pygame.Rect(0, 0, 16, 16)
     other_player_color = (0, 150, 255)
     
-    font = load_font(16)
-    font_big = load_font(16)
+    font = load_font(32)
+    font_big = load_font(56)
     
     game_over = False
     victory = False
@@ -101,18 +101,18 @@ def game_multiplayer(dm, network):
         dm.canvas.blit(font.render(f"PV: {player.health}", False, (255, 255, 255)), (12, 25))
         
         if game_over:
-            overlay = pygame.Surface((320, 180))
+            overlay = pygame.Surface(dm.canvas.get_size())
             overlay.fill((0, 0, 0))
             overlay.set_alpha(150)
             dm.canvas.blit(overlay, (0, 0))
-            dm.canvas.blit(font_big.render("GAME OVER", False, (255, 50, 50)), (110, 80))
+            dm.canvas.blit(font_big.render("GAME OVER", False, (255, 50, 50)), font_big.render("GAME OVER", False, (255, 50, 50)).get_rect(center=(640, 360)))
         
         if victory:
-            overlay = pygame.Surface((320, 180))
+            overlay = pygame.Surface(dm.canvas.get_size())
             overlay.fill((0, 0, 0))
             overlay.set_alpha(150)
             dm.canvas.blit(overlay, (0, 0))
-            dm.canvas.blit(font_big.render("VICTOIRE !", False, (50, 255, 50)), (115, 80))
+            dm.canvas.blit(font_big.render("VICTOIRE !", False, (50, 255, 50)), font_big.render("VICTOIRE !", False, (50, 255, 50)).get_rect(center=(640, 360)))
         
         dm.render()
         
