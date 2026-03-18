@@ -140,17 +140,13 @@ def multiplayer_menu(dm, network):
                     else:
                         return "menu"
                 
-                # Saisie de l'IP
+                # Saisie de l'IP (BACKSPACE, RETOUR)
                 if ip_active and not waiting_for_client and not connecting:
                     if event.key == pygame.K_BACKSPACE:
                         ip_input = ip_input[:-1]
                     elif event.key == pygame.K_RETURN:
                         # Lancer la connexion
                         pass
-                    else:
-                        char = event.unicode
-                        if len(char) == 1 and (char.isdigit() or char == '.'):
-                            ip_input += char
 
             if event.type == pygame.TEXTINPUT:
                 if ip_active and not waiting_for_client and not connecting:
