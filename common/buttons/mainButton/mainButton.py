@@ -29,7 +29,7 @@ class Button:
 
         # --- 2. Chargement de la Police (Font) ---
         self.font = pygame.font.SysFont(text_font, text_size)
-        self.text_surf = self.font.render(self.text_content, True, self.text_color)
+        self.text_surf = self.font.render(self.text_content, False, self.text_color)
 
         # --- 3. Chargement de l'image de fond (optionnel) ---
         self.bg_image = None
