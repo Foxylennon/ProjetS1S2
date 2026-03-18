@@ -57,6 +57,9 @@ class Network:
         # Thread pour recevoir les données en arrière-plan
         self.receive_thread = None
         
+        # Tampon pour assembler les messages TCP reçus (par ligne)
+        self._recv_buffer = ""
+        
         # Variable pour arrêter proprement le thread
         self.running = False
     
@@ -135,9 +138,17 @@ class Network:
                     self.connected = False
                     break
                 
-                # Décoder les données (bytes → string → dictionnaire)
+                # Décoder les données (bytes → string) et parser ligne par ligne
                 message = data.decode('utf-8')
-                self.other_player_pos = json.loads(message)
+                self._recv_buffer += message
+                while "\n" in self._recv_buffer:
+                    line, self._recv_buffer = self._recv_buffer.split("\n", 1)
+                    if not line.strip():
+                        continue
+                    try:
+                        self.other_player_pos = json.loads(line)
+                    except Exception as e:
+                        print(f"[HOST] JSON parse error: {e} - line={line}")
                 
             except Exception as e:
                 print(f"[HOST] Erreur réception: {e}")
@@ -211,7 +222,15 @@ class Network:
                     break
                 
                 message = data.decode('utf-8')
-                self.other_player_pos = json.loads(message)
+                self._recv_buffer += message
+                while "\n" in self._recv_buffer:
+                    line, self._recv_buffer = self._recv_buffer.split("\n", 1)
+                    if not line.strip():
+                        continue
+                    try:
+                        self.other_player_pos = json.loads(line)
+                    except Exception as e:
+                        print(f"[CLIENT] JSON parse error: {e} - line={line}")
                 
             except Exception as e:
                 print(f"[CLIENT] Erreur réception: {e}")
@@ -238,8 +257,8 @@ class Network:
         if not self.connected:
             return
         
-        # Créer le message
-        message = json.dumps({"x": x, "y": y})
+        # Créer le message (JSON + délimiteur newline)
+        message = json.dumps({"x": x, "y": y}) + "\n"
         
         try:
             if self.is_host:
