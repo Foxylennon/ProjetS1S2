@@ -57,30 +57,55 @@ def game_multiplayer(dm, network):
             if event.type == pygame.VIDEORESIZE:
                 dm.calc_scale()
         
+        other_pos = network.get_other_player_pos()
+
         if not game_over and not victory:
             keys = pygame.key.get_pressed()
             player.handle_input(keys, walls)
             player.update()
             
-            if enemy.is_alive():
-                enemy.update(player.rect, walls)
-                
-                if enemy.check_collision_with_player(player.rect):
-                    player.health = enemy.deal_damage_to_player(player.health)
-                    if not player.is_alive():
-                        game_over = True
-                
-                if player.check_attack_hit(enemy.rect,walls):
-                    enemy.take_damage(player.attack_damage)
+            if network.is_host:
+                if enemy.is_alive():
+                    enemy.update(player.rect, walls)
+                    
+                    if enemy.check_collision_with_player(player.rect):
+                        player.health = enemy.deal_damage_to_player(player.health)
+                        if not player.is_alive():
+                            game_over = True
+                    
+                    if player.check_attack_hit(enemy.rect, walls):
+                        enemy.take_damage(player.attack_damage)
+                else:
+                    victory = True
             else:
-                victory = True
+                # Le client ne calcule pas l'ennemi, il affiche simplement la position reçue
+                if "enemy_health" in other_pos and other_pos["enemy_health"] <= 0:
+                    enemy.health = 0
+                elif "enemy_health" in other_pos:
+                    enemy.health = other_pos["enemy_health"]
+                if "enemy_x" in other_pos and "enemy_y" in other_pos:
+                    enemy.rect.x = other_pos["enemy_x"]
+                    enemy.rect.y = other_pos["enemy_y"]
+                if "victory" in other_pos:
+                    victory = other_pos["victory"]
         
-                        
         # Réseau
-        network.send_position(player.rect.x, player.rect.y)
+        if network.is_host:
+            network.send_position(
+                player.rect.x,
+                player.rect.y,
+                enemy_x=enemy.rect.x,
+                enemy_y=enemy.rect.y,
+                enemy_health=enemy.health,
+                victory=victory,
+            )
+        else:
+            network.send_position(player.rect.x, player.rect.y)
+
         other_pos = network.get_other_player_pos()
-        other_player_rect.x = other_pos["x"]
-        other_player_rect.y = other_pos["y"]
+        if "x" in other_pos and "y" in other_pos:
+            other_player_rect.x = other_pos["x"]
+            other_player_rect.y = other_pos["y"]
         
         # Affichage
         dm.canvas.fill((30, 30, 30))
