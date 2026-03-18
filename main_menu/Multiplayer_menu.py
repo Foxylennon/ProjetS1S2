@@ -23,6 +23,7 @@ COMMENT TROUVER SON IP ?
 import pygame
 import socket
 import threading
+from main_menu.Main_menu import Button
 
 FONT_PATH = "assets/fonts/PressStart2P-Regular.ttf"
 
@@ -49,9 +50,9 @@ def multiplayer_menu(dm, network):
     # =========================================================================
     
     # Polices
-    font_big = load_font(24)
-    font_medium = load_font(18)
-    font_small = load_font(14)
+    font_big = load_font(56)
+    font_medium = load_font(32)
+    font_small = load_font(26)
     
     # Récupérer notre IP pour l'afficher
     try:
@@ -74,10 +75,14 @@ def multiplayer_menu(dm, network):
     connection_result = {"success": False, "done": False}
     
     # Boutons (x, y, largeur, hauteur)
-    btn_host = pygame.Rect(110, 50, 100, 25)
-    btn_join = pygame.Rect(110, 120, 100, 25)
-    btn_back = pygame.Rect(10, 155, 60, 20)
-    input_rect = pygame.Rect(60, 95, 200, 18)
+    GAME_W  = 1280
+    btn_width = 400
+    btn_height = 60
+    btn_x = (GAME_W - btn_width) // 2
+    btn_host = Button(btn_x, 240, btn_width, btn_height, "Créer partie", color=(70, 130, 70), hover_color=(90, 170, 90))
+    btn_join = Button(btn_x, 480, btn_width, btn_height, "Rejoindre", color=(70, 70, 130), hover_color=(100, 100, 170))
+    btn_back = Button(50, 600, btn_width // 2, int(btn_height // 1.5), "Retour", color=(60, 60, 60), hover_color=(90, 90, 90))
+    input_rect = pygame.Rect((GAME_W - btn_width * 1.5) // 2, 360, int(btn_width * 1.5), btn_height)
     
     clock = pygame.time.Clock()
     
@@ -111,7 +116,11 @@ def multiplayer_menu(dm, network):
     
     running = True
     while running:
-        
+        mouse_pos = dm.get_mouse()
+        btn_host.update(mouse_pos)
+        btn_join.update(mouse_pos)
+        btn_back.update(mouse_pos)
+
         # ---------------------------------------------------------------------
         #                    GESTION DES ÉVÉNEMENTS
         # ---------------------------------------------------------------------
@@ -139,27 +148,34 @@ def multiplayer_menu(dm, network):
                         # Lancer la connexion
                         pass
                     else:
-                        # Ajouter le caractère (seulement chiffres et points)
                         char = event.unicode
-                        if char.isdigit() or char == '.':
+                        if len(char) == 1 and (char.isdigit() or char == '.'):
                             ip_input += char
+
+            if event.type == pygame.TEXTINPUT:
+                if ip_active and not waiting_for_client and not connecting:
+                    char = event.text
+                    if len(char) == 1 and (char.isdigit() or char == '.'):
+                        ip_input += char
             
             if event.type == pygame.VIDEORESIZE:
                 dm.calc_scale()
             
             # Clics souris
-            if event.type == pygame.MOUSEBUTTONDOWN:
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 # Convertir position souris
                 mouse_pos = dm.get_mouse()
                 
                 # Clic sur le champ IP
                 if input_rect.collidepoint(mouse_pos):
                     ip_active = True
+                    pygame.key.start_text_input()
                 else:
                     ip_active = False
+                    pygame.key.stop_text_input()
                 
                 # Clic sur "Créer partie" (HOST)
-                if btn_host.collidepoint(mouse_pos) and not waiting_for_client and not connecting:
+                if btn_host.is_clicked(mouse_pos, True) and not waiting_for_client and not connecting:
                     waiting_for_client = True
                     connection_result["done"] = False
                     connection_result["success"] = False
@@ -171,7 +187,7 @@ def multiplayer_menu(dm, network):
                     network_thread.start()
                 
                 # Clic sur "Rejoindre" (CLIENT)
-                if btn_join.collidepoint(mouse_pos) and not waiting_for_client and not connecting:
+                if btn_join.is_clicked(mouse_pos, True) and not waiting_for_client and not connecting:
                     if len(ip_input) > 7:  # IP minimale : "1.1.1.1"
                         connecting = True
                         connection_result["done"] = False
@@ -186,7 +202,7 @@ def multiplayer_menu(dm, network):
                         error_message = "Entrez une IP valide!"
                 
                 # Clic sur "Retour"
-                if btn_back.collidepoint(mouse_pos):
+                if btn_back.is_clicked(mouse_pos, True):
                     network.close()
                     return "menu"
         
@@ -216,30 +232,21 @@ def multiplayer_menu(dm, network):
         
         # --- Titre ---
         title = font_big.render("MULTIJOUEUR", False, (255, 255, 255))
-        dm.canvas.blit(title, (110, 10))
+        dm.canvas.blit(title, (btn_x, 60))
         
         # --- Section HOST ---
-        host_label = font_medium.render("Créer une partie :", False, (200, 200, 200))
-        dm.canvas.blit(host_label, (10, 38))
         
         # Bouton Host
-        btn_host_color = (80, 80, 80) if waiting_for_client else (70, 130, 70)
-        pygame.draw.rect(dm.canvas, btn_host_color, btn_host, border_radius=5)
-        pygame.draw.rect(dm.canvas, (100, 100, 100), btn_host, 1, border_radius=5)
-        
-        if waiting_for_client:
-            btn_text = font_small.render("En attente...", False, (255, 255, 255))
-        else:
-            btn_text = font_small.render("Créer partie", False, (255, 255, 255))
-        dm.canvas.blit(btn_text, (btn_host.x + 15, btn_host.y + 6))
+        btn_host.text = "En attente..." if waiting_for_client else "Créer partie"
+        btn_host.color = (80, 80, 80) if waiting_for_client else (70, 130, 70)
+        btn_host.hover_color = (120, 120, 120) if waiting_for_client else (90, 170, 90)
+        btn_host.draw(dm.canvas, font_small)
         
         # Afficher notre IP
         ip_label = font_small.render(f"Votre IP : {my_ip}", False, (150, 150, 150))
-        dm.canvas.blit(ip_label, (220, 55))
+        dm.canvas.blit(ip_label, (btn_x + 480, 250))
         
         # --- Section CLIENT ---
-        client_label = font_medium.render("Rejoindre :", False, (200, 200, 200))
-        dm.canvas.blit(client_label, (10, 80))
         
         # Champ de saisie IP
         input_color = (60, 60, 80) if ip_active else (50, 50, 50)
@@ -250,32 +257,25 @@ def multiplayer_menu(dm, network):
         dm.canvas.blit(ip_text, (input_rect.x + 5, input_rect.y + 4))
         
         ip_hint = font_small.render("IP du Host :", False, (150, 150, 150))
-        dm.canvas.blit(ip_hint, (10, 98))
+        dm.canvas.blit(ip_hint, (btn_x - 245, 365))
         
         # Bouton Rejoindre
-        btn_join_color = (80, 80, 80) if connecting else (70, 70, 130)
-        pygame.draw.rect(dm.canvas, btn_join_color, btn_join, border_radius=5)
-        pygame.draw.rect(dm.canvas, (100, 100, 100), btn_join, 1, border_radius=5)
-        
-        if connecting:
-            join_text = font_small.render("Connexion...", False, (255, 255, 255))
-        else:
-            join_text = font_small.render("Rejoindre", False, (255, 255, 255))
-        dm.canvas.blit(join_text, (btn_join.x + 20, btn_join.y + 6))
+        btn_join.text = "Connexion..." if connecting else "Rejoindre"
+        btn_join.color = (80, 80, 80) if connecting else (70, 70, 130)
+        btn_join.hover_color = (120, 120, 120) if connecting else (100, 100, 170)
+        btn_join.draw(dm.canvas, font_small)
         
         # --- Message d'erreur ---
         if error_message:
             err_text = font_small.render(error_message, False, (255, 100, 100))
-            dm.canvas.blit(err_text, (110, 145))
+            dm.canvas.blit(err_text, (btn_x, 365))
         
         # --- Bouton Retour ---
-        pygame.draw.rect(dm.canvas, (60, 60, 60), btn_back, border_radius=3)
-        back_text = font_small.render("Retour", False, (200, 200, 200))
-        dm.canvas.blit(back_text, (btn_back.x + 10, btn_back.y + 5))
+        btn_back.draw(dm.canvas, font_small)
         
         # --- Instructions ---
         instr = font_small.render("ESC = Annuler/Retour", False, (100, 100, 100))
-        dm.canvas.blit(instr, (200, 165))
+        dm.canvas.blit(instr, (600, 1000))
         
         # --- Rendu ---
         dm.render()
