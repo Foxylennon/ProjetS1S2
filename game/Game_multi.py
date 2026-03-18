@@ -22,7 +22,7 @@ def game_multiplayer(dm, network):
     
     # Position de spawn selon Host/Client
     if network.is_host:
-        player = Player(20, 20)
+        player = Player(200, 200)
     else:
         player = Player(280, 140)
     
