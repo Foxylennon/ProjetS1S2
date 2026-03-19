@@ -5,6 +5,9 @@
 """
 
 import pygame
+import random
+from config import settings
+from lang import t
 from entities.Player import Player
 from entities.Enemy import Enemy
 from entities.Wall import create_level_walls
@@ -12,10 +15,37 @@ from entities.Wall import create_level_walls
 FONT_PATH = "assets/fonts/PressStart2P-Regular.ttf"
 
 def load_font(size):
+    scale = settings.get("text_scale", 1.0)
+    size = max(6, int(size * scale))
     try:
         return pygame.font.Font(FONT_PATH, size)
     except Exception:
         return pygame.font.SysFont(None, size)
+
+
+class Button:
+    """Bouton simple pour l'écran de fin de partie."""
+
+    def __init__(self, x, y, width, height, text, font, color=(70, 70, 70), hover_color=(100, 100, 100)):
+        self.rect = pygame.Rect(x, y, width, height)
+        self.text = text
+        self.font = font
+        self.color = color
+        self.hover_color = hover_color
+        self.is_hovered = False
+
+    def draw(self, surface):
+        color = self.hover_color if self.is_hovered else self.color
+        pygame.draw.rect(surface, color, self.rect, border_radius=5)
+        pygame.draw.rect(surface, (150, 150, 150), self.rect, 2, border_radius=5)
+        text_surf = self.font.render(self.text, False, (255, 255, 255))
+        surface.blit(text_surf, text_surf.get_rect(center=self.rect.center))
+
+    def update(self, mouse_pos):
+        self.is_hovered = self.rect.collidepoint(mouse_pos)
+
+    def is_clicked(self, mouse_pos, mouse_pressed):
+        return self.rect.collidepoint(mouse_pos) and mouse_pressed
 
 
 def game(dm):
@@ -24,68 +54,203 @@ def game(dm):
     
     # Joueur - spawn en haut à gauche (LOIN des murs et obstacles)
     player = Player(50, 50)
-    
-    # Ennemi - spawn en bas à droite
-    enemy1 = Enemy(1000, 500)
-    enemy2 = Enemy(900, 600)
-    enemy3 = Enemy(1100, 400)
-    enemies = [enemy1,enemy2,enemy3]
+
+    # UI profil joueur
+    profile_img_orig = None
+    try:
+        profile_img_orig = pygame.image.load("assets/ui/profile-p1.png").convert_alpha()
+    except Exception:
+        profile_img_orig = None
+
+    # Image de profil (redimensionnée selon text_scale, recalculée dans la boucle)
+    profile_img = None
+    profile_size = (0, 0)
+    if profile_img_orig is not None:
+        scale = settings.get("text_scale", 1.0)
+        profile_h = max(96, int(192 * scale))
+        ratio = profile_img_orig.get_width() / profile_img_orig.get_height()
+        profile_size = (int(profile_h * ratio), profile_h)
+        profile_img = pygame.transform.smoothscale(profile_img_orig, profile_size)
+
+    # Ennemis - spawn progressif (max 3)
+    enemies = [Enemy(1000, 500)]
+    max_enemies = 3
+    spawn_timer_ms = random.randint(2000, 5000)
+
+    # Score & temps
+    score = 0
+    time_elapsed_ms = 0
+
+    # Popups +1
+    popups = []  # liste de {'text', 'pos', 'ttl', 'vy'}
     
     # Murs
     walls = create_level_walls()
     
-    # Polices
+    # Polices (recalculées si la taille de texte change)
+    last_text_scale = settings.get("text_scale", 1.0)
     font = load_font(32)
     font_big = load_font(56)
-    
+
+    # Boutons de fin de partie / pause
+    btn_width = 240
+    btn_height = 50
+    btn_spacing = 20
+    btn_menu = Button(0, 0, btn_width, btn_height, t("button_menu"), font)
+    btn_retry = Button(0, 0, btn_width, btn_height, t("button_retry"), font)
+    btn_resume = Button(0, 0, btn_width, btn_height, t("button_resume"), font)
+
+    btn_pause = Button(12, 12, 120, 40, t("pause_title"), font)
+
     # État
     game_over = False
-    victory = False
-    
+    paused = False
+
     clock = pygame.time.Clock()
     
     while True:
+        dt = clock.tick(60)
+
+        # Recharger les polices si l'utilisateur change la taille du texte
+        current_scale = settings.get("text_scale", 1.0)
+        if current_scale != last_text_scale:
+            last_text_scale = current_scale
+            font = load_font(32)
+            font_big = load_font(56)
+
+        # Mettre à jour les polices des boutons
+        btn_menu.font = font
+        btn_retry.font = font
+        btn_resume.font = font
+        btn_pause.font = font
+
+        # Redimensionner l'image de profil selon le scale
+        profile_img = None
+        profile_size = (0, 0)
+        if profile_img_orig is not None:
+            profile_h = max(96, int(192 * settings.get("text_scale", 1.0)))
+            ratio = profile_img_orig.get_width() / profile_img_orig.get_height()
+            profile_size = (int(profile_h * ratio), profile_h)
+            profile_img = pygame.transform.smoothscale(profile_img_orig, profile_size)
+
         # --- ÉVÉNEMENTS ---
+        mouse_clicked = False
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 return "quit"
-            
+
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     return "menu"
-                
-                if event.key == pygame.K_SPACE and not game_over and not victory:
+
+                if event.key == pygame.K_SPACE and not game_over and not paused:
                     player.try_attack()
-            
+
+                if event.key == pygame.K_p and not game_over:
+                    paused = not paused
+
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                mouse_clicked = True
+
             if event.type == pygame.VIDEORESIZE:
                 dm.calc_scale()
-        
+
         # --- LOGIQUE ---
-        if not game_over and not victory:
+        mouse_pos = dm.get_mouse()
+        btn_pause.update(mouse_pos)
+
+        if mouse_clicked and btn_pause.is_clicked(mouse_pos, True) and not game_over:
+            paused = not paused
+
+        if not game_over and not paused:
+            time_elapsed_ms += dt
+
+            # Generation d'ennemis supplémentaires (jusqu'à max_enemies)
+            if len(enemies) < max_enemies:
+                spawn_timer_ms -= dt
+                if spawn_timer_ms <= 0:
+                    spawn_timer_ms = random.randint(2000, 5000)
+                    spawn_x = random.randint(50, 1230)
+                    spawn_y = random.randint(50, 670)
+                    enemies.append(Enemy(spawn_x, spawn_y))
+
             # Mouvement du joueur
             keys = pygame.key.get_pressed()
             player.handle_input(keys, walls)
-            player.update()
-            
+            player.update(dt)
+
             # Ennemi
-            if enemies != []:
-                for enemy in enemies:
-                    if enemy.is_alive():
-                        enemy.update(player.rect, walls)
-                
-                        if enemy.check_collision_with_player(player.rect):
-                            player.health = enemy.deal_damage_to_player(player.health)
-                            if not player.is_alive():
-                                game_over = True
-                
-                        if player.check_attack_hit(enemy.rect,walls):
-                            enemy.take_damage(player.attack_damage)
-                    else:
-                        enemies.remove(enemy)
-            else:
-                victory = True
-                        
-        
+            for enemy in enemies[:]:
+                if enemy.is_alive():
+                    enemy.update(player.rect, walls, dt)
+
+                    if enemy.is_in_attack_range(player.rect, 10):
+                        player.health = enemy.deal_damage_to_player(player.health)
+                        if not player.is_alive():
+                            game_over = True
+
+                    if player.check_attack_hit(enemy.rect, walls):
+                        enemy.take_damage(player.attack_damage)
+                else:
+                    enemies.remove(enemy)
+                    score += 1
+
+                    # Popup +1
+                    popups.append({
+                        "text": "+1",
+                        "pos": list(enemy.rect.center),
+                        "ttl": 800,
+                        "vy": -0.03,
+                    })
+
+            # Mise à jour des popups (animation et durée)
+            for popup in popups[:]:
+                popup["ttl"] -= dt
+                popup["pos"][1] += popup["vy"] * dt
+                if popup["ttl"] <= 0:
+                    popups.remove(popup)
+
+        # Afficher les boutons de fin de partie / pause et gérer les clics
+        if game_over:
+            center_x = dm.virtual_res[0] // 2
+            buttons_y = dm.virtual_res[1] // 2 + 80
+            total_w = btn_width * 2 + btn_spacing
+            start_x = center_x - total_w // 2
+
+            btn_menu.rect.topleft = (start_x, buttons_y)
+            btn_retry.rect.topleft = (start_x + btn_width + btn_spacing, buttons_y)
+
+            btn_menu.update(mouse_pos)
+            btn_retry.update(mouse_pos)
+
+            if mouse_clicked:
+                if btn_menu.is_clicked(mouse_pos, True):
+                    return "menu"
+                if btn_retry.is_clicked(mouse_pos, True):
+                    return "game"
+
+        elif paused:
+            center_x = dm.virtual_res[0] // 2
+            button_y = dm.virtual_res[1] // 2 + 80
+            total_w = btn_width * 3 + btn_spacing * 2
+            start_x = center_x - total_w // 2
+
+            btn_menu.rect.topleft = (start_x, button_y)
+            btn_resume.rect.topleft = (start_x + btn_width + btn_spacing, button_y)
+            btn_retry.rect.topleft = (start_x + (btn_width + btn_spacing) * 2, button_y)
+
+            btn_menu.update(mouse_pos)
+            btn_resume.update(mouse_pos)
+            btn_retry.update(mouse_pos)
+
+            if mouse_clicked:
+                if btn_menu.is_clicked(mouse_pos, True):
+                    return "menu"
+                if btn_resume.is_clicked(mouse_pos, True):
+                    paused = False
+                if btn_retry.is_clicked(mouse_pos, True):
+                    return "game"
+
         # --- AFFICHAGE ---
         dm.canvas.fill((30, 30, 30))
         
@@ -100,34 +265,95 @@ def game(dm):
         
         # Joueur
         player.draw(dm.canvas)
-        
+
+        # Popups (+1)
+        for popup in popups:
+            alpha = max(0, min(255, int(255 * (popup["ttl"] / 800))))
+            txt_surf = font.render(popup["text"], False, (255, 255, 255))
+            txt_surf.set_alpha(alpha)
+            dm.canvas.blit(txt_surf, txt_surf.get_rect(center=popup["pos"]))
+
         # HUD
-        pv_text = font.render(f"PV: {player.health}/{player.max_health}", False, (255, 255, 255))
-        dm.canvas.blit(pv_text, (12, 12))
-        
-        #controls = font.render("ESPACE=Attaque  ESC=Menu", False, (150, 150, 150))
-        #dm.canvas.blit(controls, (150, 160))
-        
+        profile_x = 2
+        profile_y = dm.virtual_res[1] - (profile_size[1] if profile_size[1] > 0 else 24) - 2
+        if profile_img is not None:
+            dm.canvas.blit(profile_img, (profile_x, profile_y))
+
+        hp_text = font.render(f"{t('hp_label')} {player.health}/{player.max_health}", False, (255, 255, 255))
+        hp_pos = (profile_x + 8, profile_y + ((profile_size[1] if profile_size[1] > 0 else 24) // 2) - (hp_text.get_height() // 2))
+        dm.canvas.blit(hp_text, hp_pos)
+
+        score_text = font.render(f"{t('score_label')} {score}", False, (255, 255, 255))
+        score_pos = (profile_x + (profile_size[0] if profile_size[0] > 0 else 0) + 48, hp_pos[1])
+        dm.canvas.blit(score_text, score_pos)
+
+        # Temps écoulé (ne s'incrémente plus après game over)
+        seconds = int(time_elapsed_ms / 1000)
+        minutes = seconds // 60
+        seconds = seconds % 60
+        time_text = font.render(f"{t('time_label')} {minutes:02d}:{seconds:02d}", False, (255, 255, 255))
+        dm.canvas.blit(time_text, (dm.virtual_res[0] - time_text.get_width() - 12, 12))
+
+        # Bouton pause
+        btn_pause.draw(dm.canvas)
+
+        controls = font.render(t("controls_hint"), False, (150, 150, 150))
+        dm.canvas.blit(controls, (150, 160))
+
         # Game Over
         if game_over:
-            overlay = pygame.Surface((1280, 720))
+            overlay = pygame.Surface(dm.canvas.get_size())
+            overlay.fill((0, 0, 0))
+            overlay.set_alpha(180)
+            dm.canvas.blit(overlay, (0, 0))
+
+            center = dm.canvas.get_rect().center
+            title_y = center[1] - 120
+
+            go_text = font_big.render(t("game_over"), False, (255, 50, 50))
+            dm.canvas.blit(go_text, go_text.get_rect(center=(center[0], title_y)))
+
+            score_text = font.render(f"{t('score_label')}: {score}", False, (255, 255, 255))
+            dm.canvas.blit(score_text, score_text.get_rect(center=(center[0], title_y + 70)))
+
+            time_text = font.render(
+                f"{t('time_label')} {minutes:02d}:{seconds:02d}", False, (255, 255, 255)
+            )
+            dm.canvas.blit(time_text, time_text.get_rect(center=(center[0], title_y + 110)))
+
+            button_y = title_y + 160
+            total_w = btn_width * 2 + btn_spacing
+            start_x = center[0] - total_w // 2
+            btn_menu.rect.topleft = (start_x, button_y)
+            btn_retry.rect.topleft = (start_x + btn_width + btn_spacing, button_y)
+
+            btn_menu.draw(dm.canvas)
+            btn_retry.draw(dm.canvas)
+
+        # Pause
+        if paused and not game_over:
+            overlay = pygame.Surface(dm.canvas.get_size())
             overlay.fill((0, 0, 0))
             overlay.set_alpha(150)
             dm.canvas.blit(overlay, (0, 0))
-            
-            go_text = font_big.render("GAME OVER", False, (255, 50, 50))
-            dm.canvas.blit(go_text, go_text.get_rect(center=(640, 360)))
-        
-        # Victoire
-        if victory:
-            overlay = pygame.Surface((1280, 720))
-            overlay.fill((0, 0, 0))
-            overlay.set_alpha(150)
-            dm.canvas.blit(overlay, (0, 0))
-            
-            win_text = font_big.render("VICTOIRE !", False, (50, 255, 50))
-            dm.canvas.blit(win_text, win_text.get_rect(center=(640, 360)))
-        
+
+            center = dm.canvas.get_rect().center
+            title_y = center[1] - 120
+
+            pause_text = font_big.render(t("pause_title"), False, (255, 255, 255))
+            dm.canvas.blit(pause_text, pause_text.get_rect(center=(center[0], title_y)))
+
+            button_y = title_y + 110
+            total_w = btn_width * 3 + btn_spacing * 2
+            start_x = center[0] - total_w // 2
+            btn_menu.rect.topleft = (start_x, button_y)
+            btn_resume.rect.topleft = (start_x + btn_width + btn_spacing, button_y)
+            btn_retry.rect.topleft = (start_x + (btn_width + btn_spacing) * 2, button_y)
+
+            btn_menu.draw(dm.canvas)
+            btn_resume.draw(dm.canvas)
+            btn_retry.draw(dm.canvas)
+
         dm.render()
         clock.tick(60)
     

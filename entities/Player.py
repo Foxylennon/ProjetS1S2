@@ -2,31 +2,198 @@
 CLASSE JOUEUR - SIMPLIFIÉ
 """
 
+import os
+
 import pygame
 from entities.Wall import check_wall_collision
 
 
+def _load_gif_frames(path: str, return_durations: bool = False):
+    """Charge les frames d'un GIF en tant que surfaces Pygame.
+
+    Pygame ne gère pas nativement les GIF animés, donc on passe par Pillow
+    si disponible. Si Pillow n'est pas installé, on se contente de charger
+    l'image statique avec pygame.image.load.
+
+    Si `return_durations` est vrai, la fonction renvoie (frames, durations_ms).
+    """
+
+    def _safe_convert(surf: pygame.Surface):
+        try:
+            return surf.convert_alpha()
+        except pygame.error:
+            return surf
+
+    try:
+        from PIL import Image
+    except ImportError:
+        # Pas de Pillow disponible : on charge juste l'image statique
+        img = pygame.image.load(path)
+        frames = [_safe_convert(img)]
+        durations = [0]
+        return (frames, durations) if return_durations else frames
+
+    frames = []
+    durations = []
+    try:
+        pil_img = Image.open(path)
+    except Exception:
+        # Fallback to pygame loader if Pillow ne peut pas ouvrir le fichier
+        img = pygame.image.load(path)
+        frames = [_safe_convert(img)]
+        durations = [0]
+        return (frames, durations) if return_durations else frames
+
+    try:
+        while True:
+            pil_frame = pil_img.convert("RGBA")
+            data = pil_frame.tobytes()
+            size = pil_frame.size
+            surf = pygame.image.fromstring(data, size, "RGBA")
+            frames.append(_safe_convert(surf))
+            durations.append(pil_img.info.get("duration", 50))
+            pil_img.seek(pil_img.tell() + 1)
+    except EOFError:
+        pass
+
+    if not frames:
+        # En dernier recours on charge une image statique
+        img = pygame.image.load(path)
+        frames = [_safe_convert(img)]
+        durations = [0]
+
+    return (frames, durations) if return_durations else frames
+
+
+def _scale_preserve_aspect(surf: pygame.Surface, target_size: tuple[int, int]) -> pygame.Surface:
+    """Redimensionne une surface tout en conservant son ratio d'aspect."""
+    sw, sh = surf.get_size()
+    tw, th = target_size
+    if sw == 0 or sh == 0 or tw == 0 or th == 0:
+        return surf
+
+    scale = min(tw / sw, th / sh)
+    new_size = (max(1, int(sw * scale)), max(1, int(sh * scale)))
+    return pygame.transform.smoothscale(surf, new_size)
+
+
+def _zoom_crop(surf: pygame.Surface, target_size: tuple[int, int], zoom: float) -> pygame.Surface:
+    """Scale le sprite puis croppe pour garder un cadre carré (taille target_size)."""
+    if zoom == 1.0:
+        return _scale_preserve_aspect(surf, target_size)
+
+    zoom_size = (int(target_size[0] * zoom), int(target_size[1] * zoom))
+    zoomed = _scale_preserve_aspect(surf, zoom_size)
+
+    out = pygame.Surface(target_size, pygame.SRCALPHA)
+    ox = (target_size[0] - zoomed.get_width()) // 2
+    oy = (target_size[1] - zoomed.get_height()) // 2
+    out.blit(zoomed, (ox, oy))
+    return out
+
+
 class Player:
-    def __init__(self, x, y, width=32, height=32):
+    def __init__(
+        self,
+        x,
+        y,
+        width=80,
+        height=54,
+        *,
+        sprite_scale: float = 1.0,
+        animation_speed: float = 3.0,
+    ):
         self.x = float(x)
         self.y = float(y)
         self.width = width
         self.height = height
         self.rect = pygame.Rect(x, y, width, height)
-        
+
         self.speed = 5
         self.health = 100
         self.max_health = 100
-        
+
         # Attaque
         self.attack_damage = 34
         self.attack_range = 40
         self.attacking = False
-        self.attack_cooldown = 0
-        self.attack_duration = 0
         self.attack_rect = None
+        self.attack_cooldown_ms = 0
+        self.attack_cooldown_ms_default = 100  # 0.2s
+        self.attack_time_elapsed_ms = 0
+        self.attack_total_duration_ms = 0
+        self.attack_frame_durations: list[int] = []
+        self.attack_frame_index = 0
+        self.attack_has_hit = False
+        self.attack_speed = 1.5  # Multiplie la vitesse de l'animation d'attaque
+
         self.direction = 0  # 0=droite, 1=gauche, 2=bas, 3=haut
-        
+
+        # Échelle d'affichage du sprite (pour agrandir sans toucher à la hitbox)
+        self.sprite_scale = sprite_scale
+        self.sprite_size = (self.width, self.height)  # on garde un cadre carré de hitbox
+
+        # Animation
+        self.animation_speed = max(0.05, animation_speed)
+        self.moving = False
+        self.animation_frame = 0
+        self.animation_timer_ms = 0
+        self.animation_frame_duration_ms = 100.0 / self.animation_speed  # ms par frame
+
+        # Attaque
+        self.attack_damage = 34
+        self.attack_range = 40
+        self.attacking = False
+        self.attack_rect = None
+        self.attack_cooldown_ms = 0
+        self.attack_cooldown_ms_default = 100  # 0.2s
+        self.attack_time_elapsed_ms = 0
+        self.attack_total_duration_ms = 0
+        self.attack_frame_durations: list[int] = []
+
+        # Chargement des sprites
+        assets_dir = os.path.normpath(
+            os.path.join(os.path.dirname(__file__), "..", "assets", "sprites", "player", "p1")
+        )
+        idle_path = os.path.join(assets_dir, "p1-idle.png")
+        run_gif_path = os.path.join(assets_dir, "p1-wasd.gif")
+
+        try:
+            self.idle_image = pygame.image.load(idle_path)
+        except Exception:
+            # Fallback en cas d'erreur
+            self.idle_image = pygame.Surface((width, height), pygame.SRCALPHA)
+            self.idle_image.fill((255, 255, 0))
+
+        # Mettre à l'échelle sans déformer le sprite (conserver le ratio)
+        self.idle_image = _zoom_crop(self.idle_image, (self.width, self.height), self.sprite_scale)
+        self.idle_image_left = pygame.transform.flip(self.idle_image, True, False)
+
+        # Animation de course
+        run_frames = _load_gif_frames(run_gif_path)
+        if not run_frames:
+            run_frames = [self.idle_image]
+        self.run_frames_right = [_zoom_crop(f, (self.width, self.height), self.sprite_scale) for f in run_frames]
+        self.run_frames_left = [pygame.transform.flip(f, True, False) for f in self.run_frames_right]
+
+        # Animation d'attaque (une fois la touche Espace pressée)
+        atk_path = os.path.join(assets_dir, "atk_ciseaux", "p1-atk-ciseaux-1-4.gif")
+        atk_frames, atk_durations = _load_gif_frames(atk_path, return_durations=True)
+        if not atk_frames:
+            atk_frames = [self.idle_image]
+            atk_durations = [0]
+
+        # On accélère l'animation d'attaque sans toucher à la vitesse de marche
+        self.attack_frame_durations = [
+            max(1, int(d / (self.animation_speed * self.attack_speed))) for d in atk_durations
+        ]
+        self.attack_total_duration_ms = sum(self.attack_frame_durations) or (
+            len(atk_frames) * self.animation_frame_duration_ms
+        )
+
+        self.attack_frames_right = [_zoom_crop(f, (self.width, self.height), self.sprite_scale) for f in atk_frames]
+        self.attack_frames_left = [pygame.transform.flip(f, True, False) for f in self.attack_frames_right]
+
         self.color = (255, 255, 0)
     
     def handle_input(self, keys, walls=None):
@@ -54,6 +221,22 @@ class Player:
             dy = -self.speed
             self.direction = 3
         
+        # Détecte si une touche de déplacement est enfoncée (pour animer)
+        self.moving = any(
+            [
+                keys[pygame.K_RIGHT],
+                keys[pygame.K_d],
+                keys[pygame.K_LEFT],
+                keys[pygame.K_a],
+                keys[pygame.K_q],
+                keys[pygame.K_DOWN],
+                keys[pygame.K_s],
+                keys[pygame.K_UP],
+                keys[pygame.K_w],
+                keys[pygame.K_z],
+            ]
+        )
+
         # Collision avec les murs
         if walls is not None and (dx != 0 or dy != 0):
             dx, dy = check_wall_collision(self.rect, walls, dx, dy)
@@ -71,51 +254,95 @@ class Player:
         self.rect.y = int(self.y)
     
     def try_attack(self):
-        """Lance une attaque."""
-        if self.attack_cooldown > 0:
+        """Lance une attaque en jouant l'animation GIF."""
+        if self.attack_cooldown_ms > 0:
             return False
-        
-        self.attacking = True
-        self.attack_duration = 1
-        self.attack_cooldown = 30
-        
-        size = self.attack_range
 
+        self.attacking = True
+        self.attack_time_elapsed_ms = 0
+        self.attack_cooldown_ms = self.attack_cooldown_ms_default
+        self.attack_has_hit = False
+        self.attack_frame_index = 0
+
+        size = self.attack_range
         offset = 10
-        
+
         if self.direction == 0:  # Droite
-            self.attack_rect = pygame.Rect(self.rect.right - offset , self.rect.centery - size//2, size + offset, size)
+            self.attack_rect = pygame.Rect(self.rect.right - offset, self.rect.centery - size // 4, size + offset, size)
         elif self.direction == 1:  # Gauche
-            self.attack_rect = pygame.Rect(self.rect.left - size , self.rect.centery - size//2, size +offset , size)
+            self.attack_rect = pygame.Rect(self.rect.left - size, self.rect.centery - size // 4, size + offset, size)
         elif self.direction == 2:  # Bas
-            self.attack_rect = pygame.Rect(self.rect.centerx - size//2, self.rect.bottom - offset, size, size + offset)
+            self.attack_rect = pygame.Rect(self.rect.centerx - size // 4, self.rect.bottom - offset, size, size + offset)
         else:  # Haut
-            self.attack_rect = pygame.Rect(self.rect.centerx - size//2, self.rect.top - size, size, size +offset)
-        
+            self.attack_rect = pygame.Rect(self.rect.centerx - size // 4, self.rect.top - size, size, size + offset)
+
         return True
     
-    def update(self):
-        """Met à jour les cooldowns."""
-        if self.attack_cooldown > 0:
-            self.attack_cooldown -= 1
-        
-        if self.attack_duration > 0:
-            self.attack_duration -= 1
+    def update(self, dt_ms: float = 0):
+        """Met à jour les cooldowns et l'animation."""
+        # Cooldown d'attaque (ms)
+        if self.attack_cooldown_ms > 0:
+            self.attack_cooldown_ms = max(0, self.attack_cooldown_ms - dt_ms)
+
+        # Animation d'attaque (durée liée au gif)
+        if self.attacking:
+            self.attack_time_elapsed_ms += dt_ms
+
+            # Déterminer l'index de la frame d'attaque actuelle
+            self.attack_frame_index = 0
+            if self.attack_frame_durations and self.attack_total_duration_ms > 0:
+                accumulated = 0
+                elapsed = min(self.attack_time_elapsed_ms, self.attack_total_duration_ms - 1)
+                for i, duration in enumerate(self.attack_frame_durations):
+                    accumulated += duration
+                    if elapsed < accumulated:
+                        self.attack_frame_index = i
+                        break
+
+            if self.attack_time_elapsed_ms >= self.attack_total_duration_ms:
+                self.attacking = False
+                self.attack_time_elapsed_ms = 0
+                self.attack_rect = None
+                self.attack_frame_index = 0
+
+        # Animation du joueur (idle vs marche)
+        if self.moving and self.run_frames_right:
+            self.animation_timer_ms += dt_ms
+            if self.animation_timer_ms >= self.animation_frame_duration_ms:
+                self.animation_timer_ms -= self.animation_frame_duration_ms
+                self.animation_frame = (self.animation_frame + 1) % len(self.run_frames_right)
         else:
-            self.attacking = False
-            self.attack_rect = None
+            self.animation_frame = 0
+            self.animation_timer_ms = 0
     
-    def check_attack_hit(self, enemy_rect,Walls):
-        """Vérifie si l'attaque touche."""
-        if self.attacking and self.attack_rect:
+    def check_attack_hit(self, enemy_rect, Walls):
+        """Vérifie si l'attaque touche.
 
-            point_depart = self.rect.center
-            point_arrivee = enemy_rect.center
+        - L'attaque ne peut toucher qu'une seule fois par coup.
+        - La hitbox n'est active qu'à partir de la 2ᵉ frame d'animation.
+        """
+        if not self.attacking or not self.attack_rect:
+            return False
 
-            for wall in Walls:
-                if wall.rect.clipline(point_depart,point_arrivee):
-                    return False
-            return self.attack_rect.colliderect(enemy_rect)
+        # Le premier frame est une phase de préparation (pas de hitbox)
+        if self.attack_frame_index < 1:
+            return False
+
+        # Empêche plusieurs touches sur la même attaque
+        if self.attack_has_hit:
+            return False
+
+        point_depart = self.rect.center
+        point_arrivee = enemy_rect.center
+
+        for wall in Walls:
+            if wall.rect.clipline(point_depart, point_arrivee):
+                return False
+
+        if self.attack_rect.colliderect(enemy_rect):
+            self.attack_has_hit = True
+            return True
+
         return False
     
     def take_damage(self, amount):
@@ -126,12 +353,38 @@ class Player:
         return self.health > 0
     
     def draw(self, surface):
-        # Joueur
-        pygame.draw.rect(surface, self.color, self.rect)
-        
-        # Zone d'attaque
-        if self.attacking and self.attack_rect:
-            pygame.draw.rect(surface, (255, 255, 255), self.attack_rect)
+        # Sprite du joueur (idle / marche / attaque)
+        if self.attacking and (self.attack_frames_right or self.attack_frames_left):
+            frames = self.attack_frames_left if self.direction == 1 else self.attack_frames_right
+            elapsed = min(self.attack_time_elapsed_ms, self.attack_total_duration_ms)
+
+            frame_index = 0
+            if self.attack_frame_durations and self.attack_total_duration_ms > 0:
+                accumulated = 0
+                for i, d in enumerate(self.attack_frame_durations):
+                    accumulated += d
+                    if elapsed < accumulated:
+                        frame_index = i
+                        break
+                frame_index = frame_index % len(frames)
+
+            image = frames[frame_index]
+        elif self.moving and self.run_frames_right:
+            frames = self.run_frames_left if self.direction == 1 else self.run_frames_right
+            image = frames[self.animation_frame % len(frames)]
+        else:
+            image = self.idle_image_left if self.direction == 1 else self.idle_image
+
+        image_rect = image.get_rect(center=self.rect.center)
+        surface.blit(image, image_rect.topleft)
+
+        # Zone d'attaque (visible seulement à partir de la 2ᵉ frame)
+        if self.attacking and self.attack_rect and self.attack_frame_index >= 1:
+            # Transparent + bordure blanche
+            overlay = pygame.Surface((self.attack_rect.width, self.attack_rect.height), pygame.SRCALPHA)
+            overlay.fill((255, 255, 255, 50))
+            pygame.draw.rect(overlay, (255, 255, 255), overlay.get_rect(), 2)
+            surface.blit(overlay, self.attack_rect.topleft)
         
         # Barre de vie
         bar_w, bar_h = 30, 4
