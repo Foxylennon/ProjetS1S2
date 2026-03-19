@@ -141,7 +141,7 @@ def game(dm):
                     player.try_attack()
 
                 if event.key == pygame.K_p and not game_over: # game: btn 'Pause' pressed
-                    paused = not paused
+                    paused = not paused 
 
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 mouse_clicked = True
@@ -207,12 +207,13 @@ def game(dm):
         # Afficher les boutons de fin de partie / pause et gérer les clics
         if game_over:
             center_x = dm.virtual_res[0] // 2
-            buttons_y = dm.virtual_res[1] // 2 + 80
+            title_y = dm.virtual_res[1] // 2 - 120
+            button_y = title_y + 160
             total_w = btn_width * 2 + btn_spacing
             start_x = center_x - total_w // 2
 
-            btn_menu.rect.topleft = (start_x, buttons_y)
-            btn_retry.rect.topleft = (start_x + btn_width + btn_spacing, buttons_y)
+            btn_menu.rect.topleft = (start_x, button_y)
+            btn_retry.rect.topleft = (start_x + btn_width + btn_spacing, button_y)
 
             btn_menu.update(mouse_pos)
             btn_retry.update(mouse_pos)
@@ -225,7 +226,8 @@ def game(dm):
 
         elif paused:
             center_x = dm.virtual_res[0] // 2
-            button_y = dm.virtual_res[1] // 2 + 80
+            title_y = dm.virtual_res[1] // 2 - 120
+            button_y = title_y + 110
             total_w = btn_width * 3 + btn_spacing * 2
             start_x = center_x - total_w // 2
 
