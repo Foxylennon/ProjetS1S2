@@ -23,8 +23,12 @@ Chaque état est une fonction qui retourne le prochain état.
 
 import pygame
 import sys
+
+from config import settings
+from lang import set_language
 from main_menu.Main_menu import main_menu
 from main_menu.Multiplayer_menu import multiplayer_menu
+from settings.Settings_menu import settings_menu
 from game.Game import game
 from game.Game_multi import game_multiplayer
 from network.Network import Network
@@ -141,12 +145,14 @@ def main():
     pygame.init()
     pygame.display.set_caption("ProjetS1S2 - Multijoueur")
 
+    # Langue initiale
+    set_language(settings.get("language", "en"))
 
     # Création du gestionnaire d'affichage (UNE SEULE FOIS)
     display_manager = DisplayManager()
-    
-    # Création de l'objet réseau (UNE SEULE FOIS)
-    # On le crée ici pour pouvoir le réutiliser entre les états
+    # Appliquer la résolution choisie dans les paramètres
+    res = settings.get("resolution", (1280, 720))
+    display_manager.change_resolution(*res)
     network = Network()
 
     # État initial
@@ -172,6 +178,10 @@ def main():
             network = Network()
             state = multiplayer_menu(display_manager, network)
         
+        elif state == "settings":
+            # Page paramètres
+            state = settings_menu(display_manager)
+
         elif state == "game_multi":
             # Jeu multijoueur
             state = game_multiplayer(display_manager, network)
