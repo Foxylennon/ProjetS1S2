@@ -101,7 +101,7 @@ class Player:
         height=54,
         *,
         sprite_scale: float = 1.0,
-        animation_speed: float = 3.0,
+        animation_speed: float = 2.0,
     ):
         self.x = float(x)
         self.y = float(y)

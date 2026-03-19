@@ -24,7 +24,7 @@ def load_font(size):
 
 
 class Button:
-    """Bouton simple pour l'écran de fin de partie."""
+    """Bouton pour l'affichage de fin de partie."""
 
     def __init__(self, x, y, width, height, text, font, color=(70, 70, 70), hover_color=(100, 100, 100)):
         self.rect = pygame.Rect(x, y, width, height)
@@ -49,50 +49,45 @@ class Button:
 
 
 def game(dm):
-    """Boucle de jeu solo."""
+    """Partie en cours"""
     print("--- JEU SOLO ---")
     
-    # Joueur - spawn en haut à gauche (LOIN des murs et obstacles)
+    # pos player when game starts
     player = Player(50, 50)
 
-    # UI profil joueur
+    # player profile
     profile_img_orig = None
     try:
         profile_img_orig = pygame.image.load("assets/ui/profile-p1.png").convert_alpha()
     except Exception:
         profile_img_orig = None
 
-    # Image de profil (redimensionnée selon text_scale, recalculée dans la boucle)
+    # profile img
     profile_img = None
     profile_size = (0, 0)
     if profile_img_orig is not None:
-        scale = settings.get("text_scale", 1.0)
-        profile_h = max(96, int(192 * scale))
         ratio = profile_img_orig.get_width() / profile_img_orig.get_height()
-        profile_size = (int(profile_h * ratio), profile_h)
+        profile_size = (int(192 * ratio), 192)
         profile_img = pygame.transform.smoothscale(profile_img_orig, profile_size)
 
-    # Ennemis - spawn progressif (max 3)
+    # mobs - spawn progressif (max 3)
     enemies = [Enemy(1000, 500)]
     max_enemies = 3
     spawn_timer_ms = random.randint(2000, 5000)
-
-    # Score & temps
+    # stats : score & timer
     score = 0
     time_elapsed_ms = 0
-
-    # Popups +1
+    # "+1"
     popups = []  # liste de {'text', 'pos', 'ttl', 'vy'}
-    
-    # Murs
+    # murs
     walls = create_level_walls()
     
-    # Polices (recalculées si la taille de texte change)
+    # fonts & scales
     last_text_scale = settings.get("text_scale", 1.0)
     font = load_font(32)
     font_big = load_font(56)
 
-    # Boutons de fin de partie / pause
+    # buttons
     btn_width = 240
     btn_height = 50
     btn_spacing = 20
@@ -102,7 +97,7 @@ def game(dm):
 
     btn_pause = Button(12, 12, 120, 40, t("pause_title"), font)
 
-    # État
+    # bool 'game over', 'pause'
     game_over = False
     paused = False
 
@@ -111,42 +106,41 @@ def game(dm):
     while True:
         dt = clock.tick(60)
 
-        # Recharger les polices si l'utilisateur change la taille du texte
+        # font scale update
         current_scale = settings.get("text_scale", 1.0)
         if current_scale != last_text_scale:
             last_text_scale = current_scale
             font = load_font(32)
             font_big = load_font(56)
 
-        # Mettre à jour les polices des boutons
+        # scaling btn text
         btn_menu.font = font
         btn_retry.font = font
         btn_resume.font = font
         btn_pause.font = font
 
-        # Redimensionner l'image de profil selon le scale
+        # scaling img
         profile_img = None
         profile_size = (0, 0)
         if profile_img_orig is not None:
-            profile_h = max(96, int(192 * settings.get("text_scale", 1.0)))
             ratio = profile_img_orig.get_width() / profile_img_orig.get_height()
-            profile_size = (int(profile_h * ratio), profile_h)
+            profile_size = (int(192 * ratio), 192)
             profile_img = pygame.transform.smoothscale(profile_img_orig, profile_size)
 
-        # --- ÉVÉNEMENTS ---
+        # --- EVENTS ---
         mouse_clicked = False
         for event in pygame.event.get():
-            if event.type == pygame.QUIT:
+            if event.type == pygame.QUIT: # -> close game
                 return "quit"
 
             if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_ESCAPE:
+                if event.key == pygame.K_ESCAPE: # -> title screen
                     return "menu"
 
-                if event.key == pygame.K_SPACE and not game_over and not paused:
+                if event.key == pygame.K_SPACE and not game_over and not paused: # game: player atk
                     player.try_attack()
 
-                if event.key == pygame.K_p and not game_over:
+                if event.key == pygame.K_p and not game_over: # game: btn 'Pause' pressed
                     paused = not paused
 
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
