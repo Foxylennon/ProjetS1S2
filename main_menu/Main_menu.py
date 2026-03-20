@@ -9,9 +9,15 @@ Menu simple sans pygame_gui - que du pygame de base.
 
 import pygame
 
+from config import settings
+from lang import t
+
 FONT_PATH = "assets/fonts/PressStart2P-Regular.ttf"
 
+
 def load_font(size):
+    scale = settings.get("text_scale", 1.0)
+    size = max(6, int(size * scale))
     try:
         return pygame.font.Font(FONT_PATH, size)
     except Exception:
@@ -54,7 +60,7 @@ def main_menu(dm):
     """Menu principal."""
     print("--- MENU PRINCIPAL ---")
     
-    # Police
+    # Police (recalculée en fonction du scale texte)
     font_big = load_font(56)
     font = load_font(32)
     
@@ -63,11 +69,12 @@ def main_menu(dm):
     btn_width = 400
     btn_height = 60
     btn_x = (GAME_W -btn_width)//2
-    btn_play = Button(btn_x, 300, btn_width, btn_height, "JOUER", color=(70, 100, 70))
-    btn_multi = Button(btn_x, 380, btn_width, btn_height, "MULTIJOUEUR", color=(70, 70, 100))
-    btn_quit = Button(btn_x, 460, btn_width, btn_height, "QUITTER", color=(100, 70, 70))
+    btn_play = Button(btn_x, 300, btn_width, btn_height, t("button_play"), color=(70, 100, 70))
+    btn_multi = Button(btn_x, 380, btn_width, btn_height, t("button_multi"), color=(70, 70, 100))
+    btn_settings = Button(btn_x, 460, btn_width, btn_height, t("button_settings"), color=(70, 100, 100))
+    btn_quit = Button(btn_x, 540, btn_width, btn_height, t("button_quit"), color=(100, 70, 70))
     
-    buttons = [btn_play, btn_multi, btn_quit]
+    buttons = [btn_play, btn_multi, btn_settings, btn_quit]
     
     clock = pygame.time.Clock()
     
@@ -102,6 +109,8 @@ def main_menu(dm):
                 return "game"
             if btn_multi.is_clicked(mouse_pos, True):
                 return "multi_menu"
+            if btn_settings.is_clicked(mouse_pos, True):
+                return "settings"
             if btn_quit.is_clicked(mouse_pos, True):
                 return "quit"
         
@@ -109,7 +118,7 @@ def main_menu(dm):
         dm.canvas.fill((40, 40, 40))
         
         # Titre
-        title = font_big.render("NANO", False, (255, 255, 255))
+        title = font_big.render(t("game_title"), False, (255, 255, 255))
         title_rect = title.get_rect(center=(640, 180))
         dm.canvas.blit(title, title_rect)
         

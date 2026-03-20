@@ -16,28 +16,41 @@ class Enemy:
         self.height = height
         self.rect = pygame.Rect(x, y, width, height)
         
-        self.speed = 4.5
+        self.speed = 2.5
         self.health = 100
         self.max_health = 100
         self.damage = 10
-        self.damage_cooldown = 0
+        self.damage_cooldown_ms = 0
+        self.damage_cooldown_ms_default = 500  # 0.5s
         
         self.color = (255, 50, 50)
     
-    def update(self, player_rect, walls=None):
-        """Se déplace vers le joueur avec du bruit, puis rebond anti-blocage."""
-        # Direction centrale vers le joueur
-        diff_x = player_rect.centerx - (self.x + self.width / 2)
-        diff_y = player_rect.centery - (self.y + self.height / 2)
+    def update(self, player_rect, walls=None, dt_ms: float = 0):
+        """Se déplace vers le joueur avec du bruit, puis rebond anti-blocage.
 
-        if abs(diff_x) < 2 and abs(diff_y) < 2:
+        L'ennemi s'arrête à 10px du joueur.
+        """
+        # Cooldown d'attaque (ms)
+        if self.damage_cooldown_ms > 0:
+            self.damage_cooldown_ms = max(0, self.damage_cooldown_ms - dt_ms)
+
+        # Si l'ennemi est déjà proche, on ne se déplace pas
+        stop_margin = 0
+        if self._edge_distance_to(player_rect) <= stop_margin:
             dx, dy = 0, 0
         else:
-            base_angle = math.atan2(diff_y, diff_x)
-            jitter = random.uniform(-math.pi / 9, math.pi / 9)  # +/- 20°
-            angle = base_angle + jitter
-            dx = math.cos(angle) * self.speed 
-            dy = math.sin(angle) * self.speed 
+            # Direction centrale vers le joueur
+            diff_x = player_rect.centerx - (self.x + self.width / 2)
+            diff_y = player_rect.centery - (self.y + self.height / 2)
+
+            if abs(diff_x) < 2 and abs(diff_y) < 2:
+                dx, dy = 0, 0
+            else:
+                base_angle = math.atan2(diff_y, diff_x)
+                jitter = random.uniform(-math.pi / 9, math.pi / 9)  # +/- 20°
+                angle = base_angle + jitter
+                dx = math.cos(angle) * self.speed
+                dy = math.sin(angle) * self.speed
 
         if walls is not None and (dx != 0 or dy != 0):
             dx_try, dy_try = check_wall_collision(self.rect, walls, dx, dy)
@@ -81,17 +94,24 @@ class Enemy:
         self.y += dy
         self.rect.x = int(self.x)
         self.rect.y = int(self.y)
-
-        if self.damage_cooldown > 0:
-            self.damage_cooldown -= 1
     
+    def _edge_distance_to(self, player_rect):
+        """Distance entre le bord de l'ennemi et le bord du joueur (en pixels)."""
+        dx = max(player_rect.left - self.rect.right, self.rect.left - player_rect.right, 0)
+        dy = max(player_rect.top - self.rect.bottom, self.rect.top - player_rect.bottom, 0)
+        return math.hypot(dx, dy)
+
     def check_collision_with_player(self, player_rect):
         return self.rect.colliderect(player_rect)
-    
+
+    def is_in_attack_range(self, player_rect, range_px: float = 10):
+        """Renvoie True si l'ennemi est suffisamment proche pour infliger des dégâts."""
+        return self._edge_distance_to(player_rect) <= range_px
+
     def deal_damage_to_player(self, player_health):
-        if self.damage_cooldown <= 0:
+        if self.damage_cooldown_ms <= 0:
             player_health -= self.damage
-            self.damage_cooldown = 60
+            self.damage_cooldown_ms = self.damage_cooldown_ms_default
         return player_health
     
     def take_damage(self, amount):
