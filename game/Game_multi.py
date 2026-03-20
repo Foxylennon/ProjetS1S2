@@ -170,10 +170,10 @@ def game_multiplayer(dm, network):
             network.send_position(
                 player.rect.x,
                 player.rect.y,
-                enemy_x=enemy.rect.x,
-                enemy_y=enemy.rect.y,
-                enemy_health=enemy.health,
-                victory=victory,
+                #enemy_x=enemy.rect.x,
+                #enemy_y=enemy.rect.y,
+                #enemy_health=enemy.health,
+                #victory=victory,
             )
         else:
             network.send_position(player.rect.x, player.rect.y)
