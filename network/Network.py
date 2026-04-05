@@ -241,22 +241,22 @@ class Network:
     #                       ENVOI DE DONNÉES
     # =========================================================================
     
-    def send_position(self, x, y, enemy_x=None, enemy_y=None, enemy_health=None, enemies=None, victory=None):
+    def send_position(self, x, y, player_health=None, enemies=None, other_player_health=None, player_attack=False, victory=None):
         """
-        Envoie notre position et, si nécessaire, les données de l'ennemi.
+        Envoie notre position, santé et données du jeu.
         """
         if not self.connected:
             return
         
         message_data = {"x": x, "y": y}
-        if enemy_x is not None:
-            message_data["enemy_x"] = enemy_x
-        if enemy_y is not None:
-            message_data["enemy_y"] = enemy_y
-        if enemy_health is not None:
-            message_data["enemy_health"] = enemy_health
+        if player_health is not None:
+            message_data["player_health"] = player_health
         if enemies is not None:
             message_data["enemies"] = enemies
+        if other_player_health is not None:
+            message_data["other_player_health"] = other_player_health
+        if player_attack:
+            message_data["player_attack"] = True
         if victory is not None:
             message_data["victory"] = victory
         
