@@ -55,19 +55,26 @@ def game_multiplayer(dm, network):
     else:
         player = Player(280, 140)
     
-    enemy = Enemy(160, 90)
+    spawn_positions = [
+        (160, 90),
+        (320, 90),
+        (160, 250),
+        (320, 250),
+        (240, 170),
+    ]
+    enemies = [Enemy(x, y) for x, y in spawn_positions]
     walls = create_level_walls()
     
     other_player_rect = pygame.Rect(0, 0, 16, 16)
     other_player_color = (0, 150, 255)
     
-    def get_closest_target(player_rect, other_pos):
+    def get_closest_target(player_rect, other_pos, enemy_rect):
         if "x" in other_pos and "y" in other_pos:
             other_rect = pygame.Rect(other_pos["x"], other_pos["y"], 16, 16)
-            local_dx = player_rect.centerx - enemy.rect.centerx
-            local_dy = player_rect.centery - enemy.rect.centery
-            other_dx = other_rect.centerx - enemy.rect.centerx
-            other_dy = other_rect.centery - enemy.rect.centery
+            local_dx = player_rect.centerx - enemy_rect.centerx
+            local_dy = player_rect.centery - enemy_rect.centery
+            other_dx = other_rect.centerx - enemy_rect.centerx
+            other_dy = other_rect.centery - enemy_rect.centery
             local_dist = local_dx * local_dx + local_dy * local_dy
             other_dist = other_dx * other_dx + other_dy * other_dy
             return other_rect if other_dist < local_dist else player_rect
@@ -132,30 +139,38 @@ def game_multiplayer(dm, network):
             player.update(dt)
 
             if network.is_host:
-                if enemy.is_alive():
-                    target_rect = get_closest_target(player.rect, other_pos)
-                    enemy.update(target_rect, walls, dt)
+                alive_enemies = [enemy for enemy in enemies if enemy.is_alive()]
+                if alive_enemies:
+                    for enemy in alive_enemies:
+                        target_rect = get_closest_target(player.rect, other_pos, enemy.rect)
+                        enemy.update(target_rect, walls, dt)
 
-                    if enemy.is_in_attack_range(player.rect, 10):
-                        player.health = enemy.deal_damage_to_player(player.health)
-                        if not player.is_alive():
-                            game_over = True
+                        if enemy.is_in_attack_range(player.rect, 10):
+                            player.health = enemy.deal_damage_to_player(player.health)
+                            if not player.is_alive():
+                                game_over = True
 
-                    if player.check_attack_hit(enemy.rect, walls):
-                        enemy.take_damage(player.attack_damage)
+                        if player.check_attack_hit(enemy.rect, walls):
+                            enemy.take_damage(player.attack_damage)
+
+                    victory = all(not enemy.is_alive() for enemy in enemies)
                 else:
                     victory = True
             else:
                 # Le client ne calcule pas l'ennemi, il affiche simplement la position reçue
-                if "enemy_health" in other_pos and other_pos["enemy_health"] <= 0:
-                    enemy.health = 0
-                elif "enemy_health" in other_pos:
-                    enemy.health = other_pos["enemy_health"]
-                if "enemy_x" in other_pos and "enemy_y" in other_pos:
-                    enemy.x = float(other_pos["enemy_x"])
-                    enemy.y = float(other_pos["enemy_y"])
-                    enemy.rect.x = int(enemy.x)
-                    enemy.rect.y = int(enemy.y)
+                if "enemies" in other_pos:
+                    enemy_list = other_pos["enemies"]
+                    for idx, enemy_data in enumerate(enemy_list):
+                        if idx < len(enemies):
+                            enemies[idx].x = float(enemy_data.get("x", enemies[idx].x))
+                            enemies[idx].y = float(enemy_data.get("y", enemies[idx].y))
+                            enemies[idx].rect.x = int(enemies[idx].x)
+                            enemies[idx].rect.y = int(enemies[idx].y)
+                            enemies[idx].health = enemy_data.get("health", enemies[idx].health)
+                        else:
+                            new_enemy = Enemy(enemy_data.get("x", 0), enemy_data.get("y", 0))
+                            new_enemy.health = enemy_data.get("health", new_enemy.health)
+                            enemies.append(new_enemy)
                 if "victory" in other_pos:
                     victory = other_pos["victory"]
 
@@ -182,12 +197,14 @@ def game_multiplayer(dm, network):
 
         # Réseau
         if network.is_host:
+            enemy_data = [
+                {"x": enemy.x, "y": enemy.y, "health": enemy.health}
+                for enemy in enemies
+            ]
             network.send_position(
                 player.rect.x,
                 player.rect.y,
-                enemy_x=enemy.rect.x,
-                enemy_y=enemy.rect.y,
-                enemy_health=enemy.health,
+                enemies=enemy_data,
                 victory=victory,
             )
         else:
@@ -206,8 +223,9 @@ def game_multiplayer(dm, network):
         
         pygame.draw.rect(dm.canvas, other_player_color, other_player_rect)
         
-        if enemy.is_alive():
-            enemy.draw(dm.canvas)
+        for enemy in enemies:
+            if enemy.is_alive():
+                enemy.draw(dm.canvas)
         
         player.draw(dm.canvas)
         

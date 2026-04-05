@@ -241,7 +241,7 @@ class Network:
     #                       ENVOI DE DONNÉES
     # =========================================================================
     
-    def send_position(self, x, y, enemy_x=None, enemy_y=None, enemy_health=None, victory=None):
+    def send_position(self, x, y, enemy_x=None, enemy_y=None, enemy_health=None, enemies=None, victory=None):
         """
         Envoie notre position et, si nécessaire, les données de l'ennemi.
         """
@@ -255,6 +255,8 @@ class Network:
             message_data["enemy_y"] = enemy_y
         if enemy_health is not None:
             message_data["enemy_health"] = enemy_health
+        if enemies is not None:
+            message_data["enemies"] = enemies
         if victory is not None:
             message_data["victory"] = victory
         
