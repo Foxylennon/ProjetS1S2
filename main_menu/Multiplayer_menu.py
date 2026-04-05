@@ -54,15 +54,19 @@ def multiplayer_menu(dm, network):
     font_medium = load_font(32)
     font_small = load_font(26)
     
-    # Récupérer notre IP pour l'afficher
-    try:
-        hostname = socket.gethostname()
-        my_ip = socket.gethostbyname(hostname)
-    except:
-        my_ip = "???.???.???.???"
+    def get_local_ip():
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+                s.connect(("8.8.8.8", 80))
+                return s.getsockname()[0]
+        except Exception:
+            return "127.0.0.1"
+
+    # Récupérer notre IP locale pour l'afficher
+    my_ip = get_local_ip()
     
     # Champ de saisie pour l'IP (pour le client)
-    ip_input = "192.168.1."  # Valeur par défaut
+    ip_input = my_ip
     ip_active = False        # Est-ce que le champ est sélectionné ?
     
     # États
