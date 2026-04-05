@@ -241,24 +241,25 @@ class Network:
     #                       ENVOI DE DONNÉES
     # =========================================================================
     
-    def send_position(self, x, y):
+    def send_position(self, x, y, enemy_x=None, enemy_y=None, enemy_health=None, victory=None):
         """
-        Envoie notre position à l'autre joueur.
-        
-        FORMAT DES DONNÉES :
-        On envoie un dictionnaire Python converti en JSON.
-        Exemple : {"x": 150, "y": 80}
-        
-        POURQUOI JSON ?
-        - C'est du texte, donc facile à débugger
-        - Python peut facilement le convertir en dictionnaire
-        - C'est un standard universel
+        Envoie notre position et, si nécessaire, les données de l'ennemi.
         """
         if not self.connected:
             return
         
+        message_data = {"x": x, "y": y}
+        if enemy_x is not None:
+            message_data["enemy_x"] = enemy_x
+        if enemy_y is not None:
+            message_data["enemy_y"] = enemy_y
+        if enemy_health is not None:
+            message_data["enemy_health"] = enemy_health
+        if victory is not None:
+            message_data["victory"] = victory
+        
         # Créer le message (JSON + délimiteur newline)
-        message = json.dumps({"x": x, "y": y}) + "\n"
+        message = json.dumps(message_data) + "\n"
         
         try:
             if self.is_host:

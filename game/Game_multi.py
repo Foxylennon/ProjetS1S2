@@ -61,6 +61,18 @@ def game_multiplayer(dm, network):
     other_player_rect = pygame.Rect(0, 0, 16, 16)
     other_player_color = (0, 150, 255)
     
+    def get_closest_target(player_rect, other_pos):
+        if "x" in other_pos and "y" in other_pos:
+            other_rect = pygame.Rect(other_pos["x"], other_pos["y"], 16, 16)
+            local_dx = player_rect.centerx - enemy.rect.centerx
+            local_dy = player_rect.centery - enemy.rect.centery
+            other_dx = other_rect.centerx - enemy.rect.centerx
+            other_dy = other_rect.centery - enemy.rect.centery
+            local_dist = local_dx * local_dx + local_dy * local_dy
+            other_dist = other_dx * other_dx + other_dy * other_dy
+            return other_rect if other_dist < local_dist else player_rect
+        return player_rect
+    
     # Polices (recalculées si l'utilisateur change la taille du texte)
     last_text_scale = settings.get("text_scale", 1.0)
     font = load_font(32)
@@ -121,7 +133,8 @@ def game_multiplayer(dm, network):
 
             if network.is_host:
                 if enemy.is_alive():
-                    enemy.update(player.rect, walls, dt)
+                    target_rect = get_closest_target(player.rect, other_pos)
+                    enemy.update(target_rect, walls, dt)
 
                     if enemy.is_in_attack_range(player.rect, 10):
                         player.health = enemy.deal_damage_to_player(player.health)
@@ -139,8 +152,10 @@ def game_multiplayer(dm, network):
                 elif "enemy_health" in other_pos:
                     enemy.health = other_pos["enemy_health"]
                 if "enemy_x" in other_pos and "enemy_y" in other_pos:
-                    enemy.rect.x = other_pos["enemy_x"]
-                    enemy.rect.y = other_pos["enemy_y"]
+                    enemy.x = float(other_pos["enemy_x"])
+                    enemy.y = float(other_pos["enemy_y"])
+                    enemy.rect.x = int(enemy.x)
+                    enemy.rect.y = int(enemy.y)
                 if "victory" in other_pos:
                     victory = other_pos["victory"]
 
