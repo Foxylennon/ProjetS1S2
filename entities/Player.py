@@ -97,8 +97,8 @@ class Player:
         self,
         x,
         y,
-        width=80,
-        height=54,
+        width=40,  # Hitbox rétrécie
+        height=40, # Hitbox rétrécie
         *,
         sprite_scale: float = 1.0,
         animation_speed: float = 2.0,
@@ -129,9 +129,9 @@ class Player:
 
         self.direction = 0  # 0=droite, 1=gauche, 2=bas, 3=haut
 
-        # Échelle d'affichage du sprite (pour agrandir sans toucher à la hitbox)
+        # Échelle d'affichage du sprite
         self.sprite_scale = sprite_scale
-        self.sprite_size = (self.width, self.height)  # on garde un cadre carré de hitbox
+        self.sprite_size = (80, 54)  # sprite visuel, décorellé de self.width/height (hitbox)
 
         # Animation
         self.animation_speed = max(0.05, animation_speed)
@@ -162,18 +162,18 @@ class Player:
             self.idle_image = pygame.image.load(idle_path)
         except Exception:
             # Fallback en cas d'erreur
-            self.idle_image = pygame.Surface((width, height), pygame.SRCALPHA)
+            self.idle_image = pygame.Surface(self.sprite_size, pygame.SRCALPHA)
             self.idle_image.fill((255, 255, 0))
 
         # Mettre à l'échelle sans déformer le sprite (conserver le ratio)
-        self.idle_image = _zoom_crop(self.idle_image, (self.width, self.height), self.sprite_scale)
+        self.idle_image = _zoom_crop(self.idle_image, self.sprite_size, self.sprite_scale)
         self.idle_image_left = pygame.transform.flip(self.idle_image, True, False)
 
         # Animation de course
         run_frames = _load_gif_frames(run_gif_path)
         if not run_frames:
             run_frames = [self.idle_image]
-        self.run_frames_right = [_zoom_crop(f, (self.width, self.height), self.sprite_scale) for f in run_frames]
+        self.run_frames_right = [_zoom_crop(f, self.sprite_size, self.sprite_scale) for f in run_frames]
         self.run_frames_left = [pygame.transform.flip(f, True, False) for f in self.run_frames_right]
 
         # Animation d'attaque (une fois la touche Espace pressée)
@@ -191,7 +191,7 @@ class Player:
             len(atk_frames) * self.animation_frame_duration_ms
         )
 
-        self.attack_frames_right = [_zoom_crop(f, (self.width, self.height), self.sprite_scale) for f in atk_frames]
+        self.attack_frames_right = [_zoom_crop(f, self.sprite_size, self.sprite_scale) for f in atk_frames]
         self.attack_frames_left = [pygame.transform.flip(f, True, False) for f in self.attack_frames_right]
 
         self.color = (255, 255, 0)
