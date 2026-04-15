@@ -12,40 +12,7 @@ from entities.Player import Player
 from entities.Enemy import Enemy
 from entities.Wall import create_level_walls
 
-FONT_PATH = "assets/fonts/PressStart2P-Regular.ttf"
-
-def load_font(size):
-    scale = settings.get("text_scale", 1.0)
-    size = max(6, int(size * scale))
-    try:
-        return pygame.font.Font(FONT_PATH, size)
-    except Exception:
-        return pygame.font.SysFont(None, size)
-
-
-class Button:
-    """Bouton pour l'affichage de fin de partie."""
-
-    def __init__(self, x, y, width, height, text, font, color=(70, 70, 70), hover_color=(100, 100, 100)):
-        self.rect = pygame.Rect(x, y, width, height)
-        self.text = text
-        self.font = font
-        self.color = color
-        self.hover_color = hover_color
-        self.is_hovered = False
-
-    def draw(self, surface):
-        color = self.hover_color if self.is_hovered else self.color
-        pygame.draw.rect(surface, color, self.rect, border_radius=5)
-        pygame.draw.rect(surface, (150, 150, 150), self.rect, 2, border_radius=5)
-        text_surf = self.font.render(self.text, False, (255, 255, 255))
-        surface.blit(text_surf, text_surf.get_rect(center=self.rect.center))
-
-    def update(self, mouse_pos):
-        self.is_hovered = self.rect.collidepoint(mouse_pos)
-
-    def is_clicked(self, mouse_pos, mouse_pressed):
-        return self.rect.collidepoint(mouse_pos) and mouse_pressed
+from ui.UI_utils import Button, load_font
 
 
 def game(dm):
@@ -79,8 +46,12 @@ def game(dm):
     time_elapsed_ms = 0
     # "+1"
     popups = []  # liste de {'text', 'pos', 'ttl', 'vy'}
-    # murs
+    # murs et grille de pathfinding
     walls = create_level_walls()
+    
+    from entities.Pathfinding import NavGrid
+    nav_grid = NavGrid(1280, 720, 32)
+    nav_grid.add_walls(walls)
     
     # fonts & scales
     last_text_scale = settings.get("text_scale", 1.0)
@@ -170,13 +141,13 @@ def game(dm):
 
             # Mouvement du joueur
             keys = pygame.key.get_pressed()
-            player.handle_input(keys, walls)
+            player.handle_input(keys, walls, dt)
             player.update(dt)
 
             # Ennemi
             for enemy in enemies[:]:
                 if enemy.is_alive():
-                    enemy.update(player.rect, walls, dt)
+                    enemy.update(player.rect, walls, dt, nav_grid)
 
                     if enemy.is_in_attack_range(player.rect, 10):
                         player.health = enemy.deal_damage_to_player(player.health)

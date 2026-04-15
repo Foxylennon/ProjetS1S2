@@ -9,40 +9,7 @@ from entities.Player import Player
 from entities.Enemy import Enemy
 from entities.Wall import create_level_walls
 
-FONT_PATH = "assets/fonts/PressStart2P-Regular.ttf"
-
-def load_font(size):
-    scale = settings.get("text_scale", 1.0)
-    size = max(6, int(size * scale))
-    try:
-        return pygame.font.Font(FONT_PATH, size)
-    except Exception:
-        return pygame.font.SysFont(None, size)
-
-
-class Button:
-    """Bouton simple pour l'écran de fin de partie."""
-
-    def __init__(self, x, y, width, height, text, font, color=(70, 70, 70), hover_color=(100, 100, 100)):
-        self.rect = pygame.Rect(x, y, width, height)
-        self.text = text
-        self.font = font
-        self.color = color
-        self.hover_color = hover_color
-        self.is_hovered = False
-
-    def draw(self, surface):
-        color = self.hover_color if self.is_hovered else self.color
-        pygame.draw.rect(surface, color, self.rect, border_radius=5)
-        pygame.draw.rect(surface, (150, 150, 150), self.rect, 2, border_radius=5)
-        text_surf = self.font.render(self.text, False, (255, 255, 255))
-        surface.blit(text_surf, text_surf.get_rect(center=self.rect.center))
-
-    def update(self, mouse_pos):
-        self.is_hovered = self.rect.collidepoint(mouse_pos)
-
-    def is_clicked(self, mouse_pos, mouse_pressed):
-        return self.rect.collidepoint(mouse_pos) and mouse_pressed
+from ui.UI_utils import Button, load_font
 
 
 def game_multiplayer(dm, network):
@@ -55,11 +22,37 @@ def game_multiplayer(dm, network):
     else:
         player = Player(280, 140)
     
-    enemy = Enemy(160, 90)
+    spawn_positions = [
+        (160, 90),
+        (320, 90),
+        (160, 250),
+        (320, 250),
+        (240, 170),
+    ]
+    enemies = [Enemy(x, y) for x, y in spawn_positions]
     walls = create_level_walls()
+    
+    from entities.Pathfinding import NavGrid
+    nav_grid = NavGrid(1280, 720, 32)
+    nav_grid.add_walls(walls)
     
     other_player_rect = pygame.Rect(0, 0, 16, 16)
     other_player_color = (0, 150, 255)
+    other_player_health = 100
+    
+    client_attack_flag = False
+    
+    def get_closest_target(player_rect, other_pos, enemy_rect):
+        if "x" in other_pos and "y" in other_pos:
+            other_rect = pygame.Rect(other_pos["x"], other_pos["y"], 16, 16)
+            local_dx = player_rect.centerx - enemy_rect.centerx
+            local_dy = player_rect.centery - enemy_rect.centery
+            other_dx = other_rect.centerx - enemy_rect.centerx
+            other_dy = other_rect.centery - enemy_rect.centery
+            local_dist = local_dx * local_dx + local_dy * local_dy
+            other_dist = other_dx * other_dx + other_dy * other_dy
+            return other_rect if other_dist < local_dist else player_rect
+        return player_rect
     
     # Polices (recalculées si l'utilisateur change la taille du texte)
     last_text_scale = settings.get("text_scale", 1.0)
@@ -105,6 +98,8 @@ def game_multiplayer(dm, network):
 
                 if event.key == pygame.K_SPACE and not game_over:
                     player.try_attack()
+                    if not network.is_host:
+                        client_attack_flag = True
 
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 mouse_clicked = True
@@ -116,31 +111,59 @@ def game_multiplayer(dm, network):
 
         if not game_over and not victory:
             keys = pygame.key.get_pressed()
-            player.handle_input(keys, walls)
+            player.handle_input(keys, walls, dt)
             player.update(dt)
 
             if network.is_host:
-                if enemy.is_alive():
-                    enemy.update(player.rect, walls, dt)
+                alive_enemies = [enemy for enemy in enemies if enemy.is_alive()]
+                if alive_enemies:
+                    for enemy in alive_enemies:
+                        target_rect = get_closest_target(player.rect, other_pos, enemy.rect)
+                        enemy.update(target_rect, walls, dt, nav_grid)
 
-                    if enemy.is_in_attack_range(player.rect, 10):
-                        player.health = enemy.deal_damage_to_player(player.health)
-                        if not player.is_alive():
-                            game_over = True
+                        if enemy.is_in_attack_range(player.rect, 10):
+                            player.health = enemy.deal_damage_to_player(player.health)
+                            if not player.is_alive():
+                                game_over = True
 
-                    if player.check_attack_hit(enemy.rect, walls):
-                        enemy.take_damage(player.attack_damage)
+                        if "x" in other_pos and "y" in other_pos:
+                            other_rect = pygame.Rect(other_pos["x"], other_pos["y"], 16, 16)
+                            if enemy.is_in_attack_range(other_rect, 10):
+                                other_player_health = enemy.deal_damage_to_player(other_player_health)
+
+                        if player.check_attack_hit(enemy.rect, walls):
+                            enemy.take_damage(player.attack_damage)
+
+                    if "player_attack" in other_pos and other_pos["player_attack"]:
+                        for enemy in alive_enemies:
+                            if "x" in other_pos and "y" in other_pos:
+                                other_rect = pygame.Rect(other_pos["x"], other_pos["y"], 16, 16)
+                                # On utilise une distance pour la hitbox d'attaque du client 
+                                dx = enemy.rect.centerx - other_rect.centerx
+                                dy = enemy.rect.centery - other_rect.centery
+                                if (dx*dx) + (dy*dy) < 3000:
+                                    enemy.take_damage(player.attack_damage)
+
+                    victory = all(not enemy.is_alive() for enemy in enemies)
                 else:
                     victory = True
             else:
                 # Le client ne calcule pas l'ennemi, il affiche simplement la position reçue
-                if "enemy_health" in other_pos and other_pos["enemy_health"] <= 0:
-                    enemy.health = 0
-                elif "enemy_health" in other_pos:
-                    enemy.health = other_pos["enemy_health"]
-                if "enemy_x" in other_pos and "enemy_y" in other_pos:
-                    enemy.rect.x = other_pos["enemy_x"]
-                    enemy.rect.y = other_pos["enemy_y"]
+                if "enemies" in other_pos:
+                    enemy_list = other_pos["enemies"]
+                    for idx, enemy_data in enumerate(enemy_list):
+                        if idx < len(enemies):
+                            enemies[idx].x = float(enemy_data.get("x", enemies[idx].x))
+                            enemies[idx].y = float(enemy_data.get("y", enemies[idx].y))
+                            enemies[idx].rect.x = int(enemies[idx].x)
+                            enemies[idx].rect.y = int(enemies[idx].y)
+                            enemies[idx].health = enemy_data.get("health", enemies[idx].health)
+                        else:
+                            new_enemy = Enemy(enemy_data.get("x", 0), enemy_data.get("y", 0))
+                            new_enemy.health = enemy_data.get("health", new_enemy.health)
+                            enemies.append(new_enemy)
+                if "other_player_health" in other_pos:
+                    player.health = other_pos["other_player_health"]
                 if "victory" in other_pos:
                     victory = other_pos["victory"]
 
@@ -165,23 +188,35 @@ def game_multiplayer(dm, network):
                 if btn_retry.is_clicked(mouse_pos, True):
                     return "game_multi"
 
-        # Réseau
         if network.is_host:
+            enemy_data = [
+                {"x": enemy.x, "y": enemy.y, "health": enemy.health}
+                for enemy in enemies
+            ]
             network.send_position(
                 player.rect.x,
                 player.rect.y,
-                #enemy_x=enemy.rect.x,
-                #enemy_y=enemy.rect.y,
-                #enemy_health=enemy.health,
-                #victory=victory,
+                player_health=player.health,
+                enemies=enemy_data,
+                other_player_health=other_player_health,
+                victory=victory,
             )
         else:
-            network.send_position(player.rect.x, player.rect.y)
+            network.send_position(
+                player.rect.x,
+                player.rect.y,
+                player_health=player.health,
+                player_attack=client_attack_flag,
+            )
+            client_attack_flag = False
 
         other_pos = network.get_other_player_pos()
         if "x" in other_pos and "y" in other_pos:
             other_player_rect.x = other_pos["x"]
             other_player_rect.y = other_pos["y"]
+        if "player_health" in other_pos:
+            if not network.is_host:
+                other_player_health = other_pos["player_health"]
         
         # Affichage
         dm.canvas.fill((30, 30, 30))
@@ -191,8 +226,9 @@ def game_multiplayer(dm, network):
         
         pygame.draw.rect(dm.canvas, other_player_color, other_player_rect)
         
-        if enemy.is_alive():
-            enemy.draw(dm.canvas)
+        for enemy in enemies:
+            if enemy.is_alive():
+                enemy.draw(dm.canvas)
         
         player.draw(dm.canvas)
         
@@ -200,6 +236,10 @@ def game_multiplayer(dm, network):
         role_label = t("host_label") if network.is_host else t("client_label")
         dm.canvas.blit(font.render(role_label, False, (255, 255, 255)), (12, 12))
         dm.canvas.blit(font.render(f"{t('hp_label')} {player.health}", False, (255, 255, 255)), (12, 25))
+        if network.is_host:
+            dm.canvas.blit(font.render(f"Client: {other_player_health}", False, (100, 150, 255)), (12, 38))
+        else:
+            dm.canvas.blit(font.render(f"Host: {other_player_health}", False, (150, 100, 100)), (12, 38))
 
         if game_over:
             overlay = pygame.Surface(dm.canvas.get_size())
@@ -227,6 +267,12 @@ def game_multiplayer(dm, network):
         
         if not network.connected:
             return "menu"
+        
+        if not player.is_alive():
+            game_over = True
+        
+        if network.is_host and other_player_health <= 0:
+            victory = True
         
         clock.tick(60)
     
