@@ -109,7 +109,7 @@ class Player:
         self.height = height
         self.rect = pygame.Rect(x, y, width, height)
 
-        self.speed = 5
+        self.speed = 300
         self.health = 100
         self.max_health = 100
 
@@ -196,7 +196,7 @@ class Player:
 
         self.color = (255, 255, 0)
     
-    def handle_input(self, keys, walls=None):
+    def handle_input(self, keys, walls=None, dt_ms=0):
         """Gère le déplacement du joueur."""
         dx = 0
         dy = 0
@@ -236,6 +236,10 @@ class Player:
                 keys[pygame.K_z],
             ]
         )
+
+        if dt_ms > 0:
+            dx *= (dt_ms / 1000.0)
+            dy *= (dt_ms / 1000.0)
 
         # Collision avec les murs
         if walls is not None and (dx != 0 or dy != 0):

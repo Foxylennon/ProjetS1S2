@@ -16,7 +16,7 @@ class Enemy:
         self.height = height
         self.rect = pygame.Rect(x, y, width, height)
         
-        self.speed = 2.5
+        self.speed = 150
         self.health = 100
         self.max_health = 100
         self.damage = 10
@@ -46,49 +46,16 @@ class Enemy:
             if abs(diff_x) < 2 and abs(diff_y) < 2:
                 dx, dy = 0, 0
             else:
-                base_angle = math.atan2(diff_y, diff_x)
-                jitter = random.uniform(-math.pi / 9, math.pi / 9)  # +/- 20°
-                angle = base_angle + jitter
+                angle = math.atan2(diff_y, diff_x)
                 dx = math.cos(angle) * self.speed
                 dy = math.sin(angle) * self.speed
 
+        if dt_ms > 0:
+            dx *= (dt_ms / 1000.0)
+            dy *= (dt_ms / 1000.0)
+
         if walls is not None and (dx != 0 or dy != 0):
-            dx_try, dy_try = check_wall_collision(self.rect, walls, dx, dy)
-
-            if dx_try == 0 and dy_try == 0:
-                # Bloqué, on tente plusieurs directions alternatives
-                alternatives = [
-                    (dx, 0),
-                    (0, dy),
-                    (math.cos(base_angle + math.pi / 2) * self.speed, math.sin(base_angle + math.pi / 2) * self.speed),
-                    (math.cos(base_angle - math.pi / 2) * self.speed, math.sin(base_angle - math.pi / 2) * self.speed),
-                    (math.cos(base_angle + math.pi) * self.speed, math.sin(base_angle + math.pi) * self.speed),
-                ]
-
-                found = False
-                for alt_dx, alt_dy in alternatives:
-                    cand_dx, cand_dy = check_wall_collision(self.rect, walls, alt_dx, alt_dy)
-                    if cand_dx != 0 or cand_dy != 0:
-                        dx, dy = cand_dx, cand_dy
-                        found = True
-                        break
-
-                if not found:
-                    # Rebond aléatoire pour sortir du coin
-                    for _ in range(8):
-                        rand_angle = random.uniform(0, math.pi * 2)
-                        rand_dx = math.cos(rand_angle) * self.speed
-                        rand_dy = math.sin(rand_angle) * self.speed
-                        cand_dx, cand_dy = check_wall_collision(self.rect, walls, rand_dx, rand_dy)
-                        if cand_dx != 0 or cand_dy != 0:
-                            dx, dy = cand_dx, cand_dy
-                            found = True
-                            break
-
-                    if not found:
-                        dx, dy = 0, 0
-            else:
-                dx, dy = dx_try, dy_try
+            dx, dy = check_wall_collision(self.rect, walls, dx, dy)
 
         self.x += dx
         self.y += dy
