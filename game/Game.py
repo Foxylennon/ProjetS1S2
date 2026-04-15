@@ -46,8 +46,12 @@ def game(dm):
     time_elapsed_ms = 0
     # "+1"
     popups = []  # liste de {'text', 'pos', 'ttl', 'vy'}
-    # murs
+    # murs et grille de pathfinding
     walls = create_level_walls()
+    
+    from entities.Pathfinding import NavGrid
+    nav_grid = NavGrid(1280, 720, 32)
+    nav_grid.add_walls(walls)
     
     # fonts & scales
     last_text_scale = settings.get("text_scale", 1.0)
@@ -143,7 +147,7 @@ def game(dm):
             # Ennemi
             for enemy in enemies[:]:
                 if enemy.is_alive():
-                    enemy.update(player.rect, walls, dt)
+                    enemy.update(player.rect, walls, dt, nav_grid)
 
                     if enemy.is_in_attack_range(player.rect, 10):
                         player.health = enemy.deal_damage_to_player(player.health)

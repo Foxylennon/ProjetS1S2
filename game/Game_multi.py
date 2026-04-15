@@ -32,6 +32,10 @@ def game_multiplayer(dm, network):
     enemies = [Enemy(x, y) for x, y in spawn_positions]
     walls = create_level_walls()
     
+    from entities.Pathfinding import NavGrid
+    nav_grid = NavGrid(1280, 720, 32)
+    nav_grid.add_walls(walls)
+    
     other_player_rect = pygame.Rect(0, 0, 16, 16)
     other_player_color = (0, 150, 255)
     other_player_health = 100
@@ -115,7 +119,7 @@ def game_multiplayer(dm, network):
                 if alive_enemies:
                     for enemy in alive_enemies:
                         target_rect = get_closest_target(player.rect, other_pos, enemy.rect)
-                        enemy.update(target_rect, walls, dt)
+                        enemy.update(target_rect, walls, dt, nav_grid)
 
                         if enemy.is_in_attack_range(player.rect, 10):
                             player.health = enemy.deal_damage_to_player(player.health)
