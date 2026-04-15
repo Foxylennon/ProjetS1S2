@@ -32,6 +32,7 @@ class Network:
         
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         self.socket.bind(("", PORT))
         self.socket.listen(1)
         
@@ -41,6 +42,7 @@ class Network:
         print("[HOST] En attente d'un joueur...")
         
         self.client_socket, client_address = self.socket.accept()
+        self.client_socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         print(f"[HOST] Joueur connecté depuis {client_address}")
         self.connected = True
         
@@ -74,6 +76,7 @@ class Network:
         self.running = True
         
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         self.socket.settimeout(5)
         
         try:
@@ -182,14 +185,14 @@ class Network:
                 
                 packet_len = len(payload)
                 message = struct.pack('!H', packet_len) + payload
-                self.client_socket.send(message)
+                self.client_socket.sendall(message)
                 
             else:
                 # Packet Type 1
                 payload = struct.pack('!Bfff?', 1, float(x), float(y), float(player_health), bool(player_attack))
                 packet_len = len(payload)
                 message = struct.pack('!H', packet_len) + payload
-                self.socket.send(message)
+                self.socket.sendall(message)
                 
         except Exception as e:
             print(f"[NETWORK] Erreur envoi: {e}")

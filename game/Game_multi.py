@@ -138,7 +138,10 @@ def game_multiplayer(dm, network):
                         for enemy in alive_enemies:
                             if "x" in other_pos and "y" in other_pos:
                                 other_rect = pygame.Rect(other_pos["x"], other_pos["y"], 16, 16)
-                                if enemy.rect.colliderect(other_rect):
+                                # On utilise une distance pour la hitbox d'attaque du client 
+                                dx = enemy.rect.centerx - other_rect.centerx
+                                dy = enemy.rect.centery - other_rect.centery
+                                if (dx*dx) + (dy*dy) < 3000:
                                     enemy.take_damage(player.attack_damage)
 
                     victory = all(not enemy.is_alive() for enemy in enemies)
@@ -212,9 +215,7 @@ def game_multiplayer(dm, network):
             other_player_rect.x = other_pos["x"]
             other_player_rect.y = other_pos["y"]
         if "player_health" in other_pos:
-            if network.is_host:
-                other_player_health = other_pos["player_health"]
-            else:
+            if not network.is_host:
                 other_player_health = other_pos["player_health"]
         
         # Affichage
