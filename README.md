@@ -40,7 +40,13 @@ Ce qui change :
 - Ajout de la page paramètre
 - Ajout des paramètres 'Résolution de fenètre', 'Taille du texte' et 'Langue'
 
-### 17/04/26
+### 17-18/04/26
 Ce qui change :
 - Ajout des 3 autres joueurs pour le multi
+    - Ajout d'une page lobby (en construction)
+    - Ajout des images des 3 autres skins (3 autres joueurs) pendant la partie
+
 - Ajout des images des 3 autres mobs, notamment la bactérie, le virus et le caillot
+- Correction de lecture des animations des monstres (notamment les gifs "wasd") en cours...
+- Modifications sur le profil pendant la partie (UI)
+- Suppression du paramètre "taille du texte", il s'avère moche..

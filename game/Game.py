@@ -161,7 +161,7 @@ def game(dm):
 
             spawned_enemies = []
             for enemy in enemies[:]:
-                if enemy.is_alive():
+                if enemy.is_alive() or not enemy.is_faint_animation_complete():
                     spawned_enemies.extend(enemy.update(player.rect, walls, dt, nav_grid, enemies))
 
                     if enemy.attack_can_hit(player.rect):
@@ -263,14 +263,28 @@ def game(dm):
         profile_x = 2
         profile_y = dm.virtual_res[1] - (profile_size[1] if profile_size[1] > 0 else 24) - 2
         if profile_img is not None:
-            dm.canvas.blit(profile_img, (profile_x, profile_y))
+            # Profil à 30% d'opacité
+            profile_with_alpha = profile_img.copy()
+            profile_with_alpha.set_alpha(77)  # 30% de 255
+            dm.canvas.blit(profile_with_alpha, (profile_x, profile_y))
 
+        # Barre de PV diagonale "\" à droite du profil
+        bar_length = 100
+        bar_x = profile_x + (profile_size[0] if profile_size[0] > 0 else 0) + 10
+        bar_y = profile_y + (profile_size[1] if profile_size[1] > 0 else 24) // 2
+        health_ratio = player.health / player.max_health
+        pygame.draw.line(dm.canvas, (255, 0, 0), (bar_x, bar_y), (bar_x + bar_length, bar_y - bar_length), 3)  # Ligne rouge diagonale
+        fill_length = int(bar_length * health_ratio)
+        pygame.draw.line(dm.canvas, (0, 255, 0), (bar_x, bar_y), (bar_x + fill_length, bar_y - fill_length), 3)  # Ligne verte
+
+        # Texte HP au-dessus du profil
         hp_text = font.render(f"{t('hp_label')} {player.health}/{player.max_health}", False, (255, 255, 255))
-        hp_pos = (profile_x + 8, profile_y + ((profile_size[1] if profile_size[1] > 0 else 24) // 2) - (hp_text.get_height() // 2))
+        hp_pos = (profile_x, profile_y - hp_text.get_height() - 5)
         dm.canvas.blit(hp_text, hp_pos)
 
+        # Score en bas à droite du profil
         score_text = font.render(f"{t('score_label')} {score}", False, (255, 255, 255))
-        score_pos = (profile_x + (profile_size[0] if profile_size[0] > 0 else 0) + 48, hp_pos[1])
+        score_pos = (profile_x + (profile_size[0] if profile_size[0] > 0 else 0) + 10, dm.virtual_res[1] - score_text.get_height() - 2)
         dm.canvas.blit(score_text, score_pos)
 
         # Temps écoulé (ne s'incrémente plus après game over)

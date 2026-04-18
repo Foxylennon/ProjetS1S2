@@ -135,6 +135,7 @@ class Player:
         self.attack_hit_frame = 1  # 2e frame (index 1)
 
         self.direction = 0  # 0=droite, 1=gauche, 2=bas, 3=haut
+        self.previous_horizontal = 0  # 0=droite, 1=gauche, conservé selon dernier déplacement horizontal
 
         # Identité du joueur
         self.player_id = max(1, min(player_id, 4))
@@ -215,11 +216,13 @@ class Player:
         if keys[pygame.K_RIGHT] or keys[pygame.K_d]:
             dx = self.speed
             self.direction = 0
+            self.previous_horizontal = 0
         
         # GAUCHE (flèche gauche OU A OU Q azerty)
         if keys[pygame.K_LEFT] or keys[pygame.K_a] or keys[pygame.K_q]:
             dx = -self.speed
             self.direction = 1
+            self.previous_horizontal = 1
         
         # BAS (flèche bas OU S)
         if keys[pygame.K_DOWN] or keys[pygame.K_s]:
@@ -388,7 +391,7 @@ class Player:
     def draw(self, surface):
         # Sprite du joueur (idle / marche / attaque)
         if self.attacking and (self.attack_frames_right or self.attack_frames_left):
-            frames = self.attack_frames_left if self.direction == 1 else self.attack_frames_right
+            frames = self.attack_frames_left if self.previous_horizontal == 1 else self.attack_frames_right
             elapsed = min(self.attack_time_elapsed_ms, self.attack_total_duration_ms)
 
             frame_index = 0
@@ -403,10 +406,10 @@ class Player:
 
             image = frames[frame_index]
         elif self.moving and self.run_frames_right:
-            frames = self.run_frames_left if self.direction == 1 else self.run_frames_right
+            frames = self.run_frames_left if self.previous_horizontal == 1 else self.run_frames_right
             image = frames[self.animation_frame % len(frames)]
         else:
-            image = self.idle_image_left if self.direction == 1 else self.idle_image
+            image = self.idle_image_left if self.previous_horizontal == 1 else self.idle_image
 
         image_rect = image.get_rect(center=self.rect.center)
         surface.blit(image, image_rect.topleft)

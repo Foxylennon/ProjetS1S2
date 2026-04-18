@@ -123,10 +123,9 @@ def game_multiplayer(dm, network):
             player.update(dt)
 
             if network.is_host:
-                alive_enemies = [enemy for enemy in enemies if enemy.is_alive()]
-                if alive_enemies:
-                    spawned_enemies = []
-                    for enemy in alive_enemies:
+                spawned_enemies = []
+                for enemy in enemies[:]:
+                    if enemy.is_alive() or not enemy.is_faint_animation_complete():
                         target_rect = get_closest_target(player.rect, other_pos, enemy.rect)
                         spawned_enemies.extend(enemy.update(target_rect, walls, dt, nav_grid, enemies))
 
@@ -142,22 +141,23 @@ def game_multiplayer(dm, network):
 
                         if player.check_attack_hit(enemy.rect, walls):
                             enemy.take_damage(player.attack_damage)
+                    else:
+                        enemies.remove(enemy)
+                        # Pas de score en multi ?
 
-                    enemies.extend(spawned_enemies)
+                enemies.extend(spawned_enemies)
 
-                    if "player_attack" in other_pos and other_pos["player_attack"]:
-                        for enemy in alive_enemies:
-                            if "x" in other_pos and "y" in other_pos:
-                                other_rect = pygame.Rect(other_pos["x"], other_pos["y"], 16, 16)
-                                # On utilise une distance pour la hitbox d'attaque du client 
-                                dx = enemy.rect.centerx - other_rect.centerx
-                                dy = enemy.rect.centery - other_rect.centery
-                                if (dx*dx) + (dy*dy) < 3000:
-                                    enemy.take_damage(player.attack_damage)
+                if "player_attack" in other_pos and other_pos["player_attack"]:
+                    for enemy in [e for e in enemies if e.is_alive()]:
+                        if "x" in other_pos and "y" in other_pos:
+                            other_rect = pygame.Rect(other_pos["x"], other_pos["y"], 16, 16)
+                            # On utilise une distance pour la hitbox d'attaque du client 
+                            dx = enemy.rect.centerx - other_rect.centerx
+                            dy = enemy.rect.centery - other_rect.centery
+                            if (dx*dx) + (dy*dy) < 3000:
+                                enemy.take_damage(player.attack_damage)
 
-                    victory = all(not enemy.is_alive() for enemy in enemies)
-                else:
-                    victory = True
+                victory = all(not enemy.is_alive() for enemy in enemies)
             else:
                 # Le client ne calcule pas l'ennemi, il affiche simplement la position reçue
                 if "enemies" in other_pos:

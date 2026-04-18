@@ -125,17 +125,6 @@ class Enemy:
         self.sprite_scale = 1.0
         self.sprite_size = (103, 103) if self.monster_type == "tumor" else (110, 110)
 
-        self.damage_cooldown_ms = 0
-        self.damage_cooldown_ms_default = 800
-
-        self.state = "idle"
-        self.moving = False
-        self.facing_left = False
-        self.previous_horizontal = False
-
-        self.sprite_scale = 1.0
-        self.sprite_size = (110, 110)
-
         self.animation_frame = 0
         self.animation_timer_ms = 0
         self.animation_frame_durations = []
@@ -169,6 +158,7 @@ class Enemy:
         self.heal_timer = 0
         self.heal_tick_ms = 1200
         self.healing_target = None
+        self.heal_phase = "idle"
 
         self.caillot_phase = "moving"
         self.caillot_phase_timer = 0
@@ -178,6 +168,8 @@ class Enemy:
         self.last_path_update = 0
         self.path_update_interval = 500
         self.current_target_pos = None
+
+        self.immobility_timer = 0
 
         self._load_assets()
 
@@ -403,6 +395,9 @@ class Enemy:
         else:
             self.moving = False
 
+    def is_alive(self):
+        return self.health > 0
+
     def _choose_heal_target(self, allies):
         if not allies:
             return None
@@ -418,7 +413,8 @@ class Enemy:
             self.healing_target = target
             if self.state != "healing":
                 self._set_state("healing")
-            self._move_towards(target.rect, walls, dt_ms, stop_distance=3.0)
+                self.heal_phase = "b4loop"
+            self._move_towards(target.rect, walls, dt_ms, stop_distance=10.0)
             self.heal_timer += dt_ms
             if self.heal_timer >= self.heal_tick_ms:
                 self.heal_timer -= self.heal_tick_ms
@@ -440,34 +436,50 @@ class Enemy:
         return math.hypot(dx, dy) <= self.detection_radius
 
     def _advance_animation(self, dt_ms: float):
+        spawned = []
         if self.state == "hit":
             if self.hit_time_ms > 0:
                 self.hit_time_ms -= dt_ms * self.animation_speed
                 if self.hit_time_ms <= 0:
                     self._set_state("idle")
-            return
+            return spawned
 
         frames, durations = self._get_current_animation()
         if not frames:
-            return
+            return spawned
 
         if self.state == "attacking":
             self.attack_frame_index = self.animation_frame
 
         duration = durations[self.animation_frame] if self.animation_frame < len(durations) else durations[-1]
         self.animation_timer_ms += dt_ms * self.animation_speed
-        while duration > 0 and self.animation_timer_ms >= duration:
+        if self.animation_timer_ms >= duration:
             self.animation_timer_ms -= duration
             self.animation_frame += 1
+            if self.monster_type == "bacteria" and self.state == "skill_a":
+                if self.animation_frame == 10:  # 11th frame (0-based)
+                    clone = Enemy(self.x + 10, self.y, monster_type="bacteria", clone=True)
+                    clone.x += 6
+                    clone.rect.x = int(clone.x)
+                    clone._set_state("skill_b")
+                    clone.facing_left = self.facing_left
+                    spawned.append(clone)
+                elif self.animation_frame == 11:  # 12th frame
+                    self.x -= 3
+                    self.rect.x = int(self.x)
             if self.animation_frame >= len(frames):
-                if self.state in ("attacking", "skill_a", "skill_b", "healing", "faint"):
-                    self._on_action_complete()
-                    return
-                self.animation_frame = 0
-            duration = durations[self.animation_frame] if self.animation_frame < len(durations) else 100
+                if self.state == "healing" and self.heal_phase == "b4loop":
+                    self.heal_phase = "heal"
+                    self.animation_frame = 0
+                elif self.state in ("attacking", "skill_a", "skill_b", "healing", "faint"):
+                    spawned.extend(self._on_action_complete())
+                    return spawned
+                else:
+                    self.animation_frame = 0
 
         if self.state == "attacking":
             self.attack_frame_index = self.animation_frame
+        return spawned
 
     def _get_current_animation(self):
         if self.state == "faint":
@@ -481,9 +493,11 @@ class Enemy:
         if self.state == "skill_b":
             return self.skill_b_frames, self.skill_b_durations
         if self.state == "healing":
-            if self.heal_frames:
+            if self.heal_phase == "b4loop":
+                return [self.heal_b4loop], [100]
+            elif self.heal_frames:
                 return self.heal_frames, self.heal_durations
-            if self.heal_b4loop:
+            elif self.heal_b4loop:
                 return [self.heal_b4loop], [100]
             return self.idle_frames, self.idle_durations
         if self.moving:
@@ -491,6 +505,7 @@ class Enemy:
         return self.idle_frames, self.idle_durations
 
     def _on_action_complete(self):
+        spawned = []
         if self.state == "attacking":
             self.attacking = False
             self.attack_rect = None
@@ -499,15 +514,16 @@ class Enemy:
             else:
                 self._set_state("idle")
         elif self.state == "skill_a":
-            self.pending_clone = True
-            self._set_state("skill_b")
-            self.skill_b_timer = 1000
+            self.immobility_timer = 1000
+            self._set_state("idle")
         elif self.state == "skill_b":
+            self.immobility_timer = 1000
             self._set_state("idle")
         elif self.state == "healing":
             self._set_state("idle")
         elif self.state == "faint":
             self.animation_frame = len(self.faint_frames) - 1
+        return spawned
 
     def _update_attack_rect(self):
         self.attack_rect = pygame.Rect(self.rect.centerx - 30, self.rect.centery - 30, 60, 60)
@@ -517,7 +533,7 @@ class Enemy:
         if self.health <= 0:
             if self.state != "faint":
                 self._start_faint()
-            self._advance_animation(dt_ms)
+            spawned.extend(self._advance_animation(dt_ms))
             return spawned
 
         if self.monster_type == "caillot":
@@ -525,56 +541,47 @@ class Enemy:
                 if self.state != "waiting" and self.state != "moving":
                     self._set_state("idle")
                 self._update_caillot(dt_ms, walls)
-                self._advance_animation(dt_ms)
+                spawned.extend(self._advance_animation(dt_ms))
             return spawned
 
         if self.monster_type == "virus":
             self._update_virus(allies, dt_ms, walls)
-            self._advance_animation(dt_ms)
+            spawned.extend(self._advance_animation(dt_ms))
             return spawned
 
         if self.hit_time_ms > 0:
-            self._advance_animation(dt_ms)
+            spawned.extend(self._advance_animation(dt_ms))
             return spawned
 
-        if self.state == "skill_a":
-            self._advance_animation(dt_ms)
+        if self.immobility_timer > 0:
+            self.immobility_timer -= dt_ms
+            spawned.extend(self._advance_animation(dt_ms))
             return spawned
 
-        if self.state == "skill_b":
-            if self.pending_clone and not self.spawned_clone and self.skill_b_frames:
-                self.spawned_clone = True
-                self.pending_clone = False
-                clone = Enemy(self.x + 10, self.y, monster_type="bacteria", clone=True)
-                clone._set_state("skill_b")
-                clone.facing_left = self.facing_left
-                spawned.append(clone)
-                self.x -= 12
-                self.rect.x = int(self.x)
-            self._move_towards(player_rect, walls, dt_ms)
-            self._advance_animation(dt_ms)
+        if self.state in ("skill_a", "skill_b"):
+            spawned.extend(self._advance_animation(dt_ms))
             return spawned
 
         if self.state == "attacking":
-            self._advance_animation(dt_ms)
+            spawned.extend(self._advance_animation(dt_ms))
             return spawned
 
         if not self._player_in_range(player_rect):
             self.moving = False
             self._set_state("idle")
-            self._advance_animation(dt_ms)
+            spawned.extend(self._advance_animation(dt_ms))
             return spawned
 
         if self.is_in_attack_range(player_rect, self.attack_range):
             self._open_attack()
             self._update_attack_rect()
-            self._advance_animation(dt_ms)
+            spawned.extend(self._advance_animation(dt_ms))
             return spawned
 
         self._move_towards(player_rect, walls, dt_ms)
         if self.state != "attacking":
             self._set_state("moving")
-        self._advance_animation(dt_ms)
+        spawned.extend(self._advance_animation(dt_ms))
         return spawned
 
     def attack_can_hit(self, target_rect):
@@ -606,8 +613,8 @@ class Enemy:
             self._start_faint()
         return self.health <= 0
 
-    def is_alive(self):
-        return self.health > 0
+    def is_faint_animation_complete(self):
+        return self.state == "faint" and self.animation_frame >= len(self.faint_frames) - 1
 
     def _select_image(self):
         if self.state == "hit":
