@@ -13,11 +13,14 @@ import pygame
 class Wall:
     """Un mur simple qui bloque le passage."""
     
-    def __init__(self, x, y, width, height, color=(80, 80, 80)):
+    def __init__(self, x, y, width, height, color=(80, 80, 80), visible=True):
         self.rect = pygame.Rect(x, y, width, height)
         self.color = color
+        self.visible = visible
     
     def draw(self, surface):
+        if not self.visible:
+            return
         pygame.draw.rect(surface, self.color, self.rect)
 
 
@@ -27,16 +30,16 @@ def create_level_walls():
     
     # --- BORDURES DE L'ÉCRAN ---
     # Mur du HAUT
-    walls.append(Wall(0, 0, 1280, 32))
+    walls.append(Wall(0, 0, 1280, 32, visible=False))
     
     # Mur du BAS
-    walls.append(Wall(0, 688, 1280, 32))
+    walls.append(Wall(0, 688, 1280, 32, visible=False))
     
     # Mur de GAUCHE
-    walls.append(Wall(0, 0, 32, 720))
+    walls.append(Wall(0, 0, 32, 720, visible=False))
     
     # Mur de DROITE
-    walls.append(Wall(1248, 0, 32, 720))
+    walls.append(Wall(1248, 0, 32, 720, visible=False))
     
     # --- OBSTACLES AU MILIEU ---
     # Obstacle horizontal au centre

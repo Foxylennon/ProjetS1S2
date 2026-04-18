@@ -15,8 +15,14 @@ class Network:
         self.is_host = False
         self.connected = False
         
-        # Position reconstruite de l'autre joueur
-        self.other_player_pos = {"x": 100, "y": 100}
+        # Position reconstruite de l'autre joueur et informations de lobby
+        self.other_player_pos = {
+            "x": 100,
+            "y": 100,
+            "lobby_ready": False,
+            "lobby_name": "",
+            "start_game": False,
+        }
         
         self.receive_thread = None
         self._recv_buffer = b""  # Tampon binaire
@@ -139,11 +145,12 @@ class Network:
             if packet_type == 1:
                 # [Client -> Host] format: header(1) + x(f) + y(f) + hp(f) + a_attaque(?) = 14 bytes
                 _, x, y, hp, attack = struct.unpack('!Bfff?', payload)
-                self.other_player_pos = {
-                    "x": x, "y": y,
+                self.other_player_pos.update({
+                    "x": x,
+                    "y": y,
                     "player_health": hp,
-                    "player_attack": attack
-                }
+                    "player_attack": attack,
+                })
             elif packet_type == 2:
                 # [Host -> Client] format: header(1) + x(f) + y(f) + hp(f) + other_hp(f) + vic(?) + num_enemies(B) = 19 bytes
                 _, x, y, hp, other_hp, vic, num_enemies = struct.unpack('!Bffff?B', payload[:19])
@@ -151,17 +158,32 @@ class Network:
                 enemies = []
                 offset = 19
                 for _ in range(num_enemies):
-                    ex, ey, ehp = struct.unpack('!fff', payload[offset:offset+12])
-                    enemies.append({"x": ex, "y": ey, "health": ehp})
-                    offset += 12
+                    ex, ey, ehp, etype_id = struct.unpack('!fffB', payload[offset:offset+13])
+                    enemy_type = {1: "tumor", 2: "bacteria", 3: "virus", 4: "caillot"}.get(etype_id, "tumor")
+                    enemies.append({"x": ex, "y": ey, "health": ehp, "type": enemy_type})
+                    offset += 13
                     
-                self.other_player_pos = {
-                    "x": x, "y": y,
+                self.other_player_pos.update({
+                    "x": x,
+                    "y": y,
                     "player_health": hp,
                     "other_player_health": other_hp,
                     "victory": vic,
-                    "enemies": enemies
-                }
+                    "enemies": enemies,
+                })
+            elif packet_type == 3:
+                # [Lobby] header(1) + ready(?) + name_len(B) + name bytes
+                if len(payload) >= 3:
+                    _, ready, name_len = struct.unpack('!B?B', payload[:3])
+                    name_bytes = payload[3:3+name_len]
+                    name = name_bytes.decode('utf-8', errors='ignore') if name_bytes else ""
+                    self.other_player_pos.update({
+                        "lobby_ready": ready,
+                        "lobby_name": name,
+                    })
+            elif packet_type == 5:
+                # [Lobby] Host démarre la partie
+                self.other_player_pos["start_game"] = True
         except Exception as e:
             print(f"[NETWORK] Payload parse error: {e}")
 
@@ -181,7 +203,8 @@ class Network:
                 
                 if enemies:
                     for e in enemies:
-                        payload += struct.pack('!fff', float(e['x']), float(e['y']), float(e['health']))
+                        type_id = {"tumor": 1, "bacteria": 2, "virus": 3, "caillot": 4}.get(e.get('type', 'tumor'), 1)
+                        payload += struct.pack('!fffB', float(e['x']), float(e['y']), float(e['health']), type_id)
                 
                 packet_len = len(payload)
                 message = struct.pack('!H', packet_len) + payload
@@ -196,6 +219,39 @@ class Network:
                 
         except Exception as e:
             print(f"[NETWORK] Erreur envoi: {e}")
+            self.connected = False
+
+    def send_lobby_status(self, ready: bool, name: str = ""):
+        if not self.connected:
+            return
+        if name is None:
+            name = ""
+        name_bytes = name.encode('utf-8')[:255]
+        payload = struct.pack('!B?B', 3, bool(ready), len(name_bytes)) + name_bytes
+        packet_len = len(payload)
+        message = struct.pack('!H', packet_len) + payload
+        try:
+            if self.is_host and self.client_socket:
+                self.client_socket.sendall(message)
+            elif not self.is_host and self.socket:
+                self.socket.sendall(message)
+        except Exception as e:
+            print(f"[NETWORK] Erreur envoi lobby status: {e}")
+            self.connected = False
+
+    def send_start_game(self):
+        if not self.connected:
+            return
+        payload = struct.pack('!B', 5)
+        packet_len = len(payload)
+        message = struct.pack('!H', packet_len) + payload
+        try:
+            if self.is_host and self.client_socket:
+                self.client_socket.sendall(message)
+            elif not self.is_host and self.socket:
+                self.socket.sendall(message)
+        except Exception as e:
+            print(f"[NETWORK] Erreur envoi start game: {e}")
             self.connected = False
             
     def get_other_player_pos(self):

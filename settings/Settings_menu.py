@@ -64,57 +64,6 @@ class Dropdown:
         return False
 
 
-class Slider:
-    """Barre horizontale pour ajuster une valeur continue."""
-
-    def __init__(self, x, y, width, height, min_value, max_value, value, font, color=(70, 70, 70)):
-        self.rect = pygame.Rect(x, y, width, height)
-        self.min_value = min_value
-        self.max_value = max_value
-        self.value = value
-        self.font = font
-        self.color = color
-        self.dragging = False
-
-    def _value_to_pos(self):
-        fraction = (self.value - self.min_value) / (self.max_value - self.min_value)
-        return int(self.rect.x + fraction * self.rect.width)
-
-    def _pos_to_value(self, x):
-        fraction = (x - self.rect.x) / self.rect.width
-        fraction = max(0.0, min(1.0, fraction))
-        return self.min_value + fraction * (self.max_value - self.min_value)
-
-    def draw(self, surface):
-        pygame.draw.rect(surface, self.color, self.rect, border_radius=6)
-        pygame.draw.rect(surface, (180, 180, 180), self.rect, 2, border_radius=6)
-
-        handle_x = self._value_to_pos()
-        handle_r = self.rect.height // 2
-        pygame.draw.circle(surface, (220, 220, 220), (handle_x, self.rect.centery), handle_r)
-        pygame.draw.circle(surface, (120, 120, 120), (handle_x, self.rect.centery), handle_r, 2)
-
-        # Affiche la valeur (par exemple 1.0x)
-        label = f"{self.value:.2f}x"
-        text_surf = self.font.render(label, False, (255, 255, 255))
-        surface.blit(text_surf, text_surf.get_rect(midleft=(self.rect.right + 12, self.rect.centery)))
-
-    def handle_event(self, mouse_pos, mouse_pressed):
-        if mouse_pressed:
-            if self.rect.collidepoint(mouse_pos):
-                self.dragging = True
-                self.value = self._pos_to_value(mouse_pos[0])
-                return True
-        else:
-            self.dragging = False
-
-        if self.dragging:
-            self.value = self._pos_to_value(mouse_pos[0])
-            return True
-
-        return False
-
-
 def settings_menu(dm):
     """Page de paramètres."""
     print("--- SETTINGS ---")
@@ -147,9 +96,6 @@ def settings_menu(dm):
     res_dropdown = Dropdown(0, 0, dropdown_w, dropdown_h, [], selected_index=res_index, font=None)
     lang_dropdown = Dropdown(0, 0, dropdown_w, dropdown_h, [], selected_index=lang_index, font=None)
 
-    slider_width = 640
-    text_slider = Slider(0, 0, slider_width, 28, min_value=0.5, max_value=2.0, value=settings.get("text_scale", 1.0), font=None)
-
     btn_back = Button(0, 0, 240, 50, t("button_back"), None)
 
     clock = pygame.time.Clock()
@@ -169,10 +115,9 @@ def settings_menu(dm):
             if event.type == pygame.VIDEORESIZE:
                 dm.calc_scale()
 
-        # --- Fonts (recalculées selon la taille de texte) ---
-        text_scale = settings.get("text_scale", 1.0)
-        font_title = pygame.font.Font("assets/fonts/PressStart2P-Regular.ttf", max(12, int(56 * text_scale)))
-        font = pygame.font.Font("assets/fonts/PressStart2P-Regular.ttf", max(10, int(28 * text_scale)))
+        # --- Fonts ---
+        font_title = pygame.font.Font("assets/fonts/PressStart2P-Regular.ttf", 56)
+        font = pygame.font.Font("assets/fonts/PressStart2P-Regular.ttf", 28)
 
         # Mise à jour des labels (en cas de changement de langue)
         resolutions = [(t(key), value) for key, value in resolution_values]
@@ -193,12 +138,7 @@ def settings_menu(dm):
         max_options = max(len(resolution_values), len(language_values))
         dropdown_area_height = (max_options + 1) * dropdown_h
 
-        slider_x = center_x - slider_width // 2
-        slider_y = top_y + dropdown_area_height + 40
-        text_slider.rect.topleft = (slider_x, slider_y)
-        text_slider.font = font
-
-        btn_back.rect.topleft = (center_x - btn_back.rect.width // 2, slider_y + 90)
+        btn_back.rect.topleft = (center_x - btn_back.rect.width // 2, top_y + dropdown_area_height + 40)
         btn_back.font = font
 
         res_dropdown.font = font
@@ -206,9 +146,6 @@ def settings_menu(dm):
 
         # --- MISE À JOUR DES ÉTATS ---
         btn_back.update(mouse_pos)
-
-        if text_slider.handle_event(mouse_pos, mouse_clicked):
-            settings["text_scale"] = text_slider.value
 
         if mouse_clicked:
             if res_dropdown.handle_click(mouse_pos):
@@ -241,11 +178,6 @@ def settings_menu(dm):
 
         label_lang = font.render(t("language_label"), False, (220, 220, 220))
         dm.canvas.blit(label_lang, (right_x, top_y - 40))
-
-        # Slider (taille du texte)
-        label_slider = font.render(t("text_size_label"), False, (220, 220, 220))
-        dm.canvas.blit(label_slider, (slider_x, slider_y - 40))
-        text_slider.draw(dm.canvas)
 
         # Dropdowns + bouton
         res_dropdown.draw(dm.canvas)

@@ -100,6 +100,8 @@ class Player:
         width=40,  # Hitbox rétrécie
         height=40, # Hitbox rétrécie
         *,
+        player_id: int = 1,
+        name: str | None = None,
         sprite_scale: float = 1.0,
         animation_speed: float = 2.0,
     ):
@@ -127,11 +129,20 @@ class Player:
         self.attack_has_hit = False
         self.attack_speed = 1.5  # Multiplie la vitesse de l'animation d'attaque
 
+        # Système de combo
+        self.combo_level = 0  # 0, 1, 2 pour les 3 attaques
+        self.combo_attack_pressed = False  # Si espace est pressé pendant l'animation
+        self.attack_hit_frame = 1  # 2e frame (index 1)
+
         self.direction = 0  # 0=droite, 1=gauche, 2=bas, 3=haut
+
+        # Identité du joueur
+        self.player_id = max(1, min(player_id, 4))
+        self.display_name = name.strip() if name and name.strip() else f"P{self.player_id}"
 
         # Échelle d'affichage du sprite
         self.sprite_scale = sprite_scale
-        self.sprite_size = (80, 54)  # sprite visuel, décorellé de self.width/height (hitbox)
+        self.sprite_size = (82, 56)  # sprite visuel, décorellé de self.width/height (hitbox)
 
         # Animation
         self.animation_speed = max(0.05, animation_speed)
@@ -140,23 +151,12 @@ class Player:
         self.animation_timer_ms = 0
         self.animation_frame_duration_ms = 100.0 / self.animation_speed  # ms par frame
 
-        # Attaque
-        self.attack_damage = 34
-        self.attack_range = 40
-        self.attacking = False
-        self.attack_rect = None
-        self.attack_cooldown_ms = 0
-        self.attack_cooldown_ms_default = 100  # 0.2s
-        self.attack_time_elapsed_ms = 0
-        self.attack_total_duration_ms = 0
-        self.attack_frame_durations: list[int] = []
-
         # Chargement des sprites
         assets_dir = os.path.normpath(
-            os.path.join(os.path.dirname(__file__), "..", "assets", "sprites", "player", "p1")
+            os.path.join(os.path.dirname(__file__), "..", "assets", "sprites", "player", f"p{self.player_id}")
         )
-        idle_path = os.path.join(assets_dir, "p1-idle.png")
-        run_gif_path = os.path.join(assets_dir, "p1-wasd.gif")
+        idle_path = os.path.join(assets_dir, f"p{self.player_id}-idle.png")
+        run_gif_path = os.path.join(assets_dir, f"p{self.player_id}-wasd.gif")
 
         try:
             self.idle_image = pygame.image.load(idle_path)
@@ -176,23 +176,33 @@ class Player:
         self.run_frames_right = [_zoom_crop(f, self.sprite_size, self.sprite_scale) for f in run_frames]
         self.run_frames_left = [pygame.transform.flip(f, True, False) for f in self.run_frames_right]
 
-        # Animation d'attaque (une fois la touche Espace pressée)
-        atk_path = os.path.join(assets_dir, "atk_ciseaux", "p1-atk-ciseaux-1-4.gif")
-        atk_frames, atk_durations = _load_gif_frames(atk_path, return_durations=True)
-        if not atk_frames:
-            atk_frames = [self.idle_image]
-            atk_durations = [0]
+        # Animation d'attaque (système de combo avec 3 attaques)
+        self.attack_animations = []
+        for combo in range(1, 4):
+            atk_path = os.path.join(assets_dir, "atk-ciseaux", f"p{self.player_id}-atk-ciseaux-{combo*4-3}-{combo*4}.gif")
+            atk_frames, atk_durations = _load_gif_frames(atk_path, return_durations=True)
+            if not atk_frames:
+                atk_frames = [self.idle_image]
+                atk_durations = [0]
+            # On accélère l'animation d'attaque sans toucher à la vitesse de marche
+            frame_durations = [
+                max(1, int(d / (self.animation_speed * self.attack_speed))) for d in atk_durations
+            ]
+            total_duration = sum(frame_durations) or (len(atk_frames) * self.animation_frame_duration_ms)
+            frames_right = [_zoom_crop(f, self.sprite_size, self.sprite_scale) for f in atk_frames]
+            frames_left = [pygame.transform.flip(f, True, False) for f in frames_right]
+            self.attack_animations.append({
+                'frames_right': frames_right,
+                'frames_left': frames_left,
+                'frame_durations': frame_durations,
+                'total_duration': total_duration
+            })
 
-        # On accélère l'animation d'attaque sans toucher à la vitesse de marche
-        self.attack_frame_durations = [
-            max(1, int(d / (self.animation_speed * self.attack_speed))) for d in atk_durations
-        ]
-        self.attack_total_duration_ms = sum(self.attack_frame_durations) or (
-            len(atk_frames) * self.animation_frame_duration_ms
-        )
-
-        self.attack_frames_right = [_zoom_crop(f, self.sprite_size, self.sprite_scale) for f in atk_frames]
-        self.attack_frames_left = [pygame.transform.flip(f, True, False) for f in self.attack_frames_right]
+        # Utiliser la première attaque par défaut
+        self.attack_frames_right = self.attack_animations[0]['frames_right']
+        self.attack_frames_left = self.attack_animations[0]['frames_left']
+        self.attack_frame_durations = self.attack_animations[0]['frame_durations']
+        self.attack_total_duration_ms = self.attack_animations[0]['total_duration']
 
         self.color = (255, 255, 0)
     
@@ -262,11 +272,24 @@ class Player:
         if self.attack_cooldown_ms > 0:
             return False
 
+        # Si on est en train d'attaquer et que l'espace est pressé, préparer le combo suivant
+        if self.attacking:
+            self.combo_attack_pressed = True
+            return False
+
         self.attacking = True
         self.attack_time_elapsed_ms = 0
         self.attack_cooldown_ms = self.attack_cooldown_ms_default
         self.attack_has_hit = False
         self.attack_frame_index = 0
+        self.combo_attack_pressed = False
+
+        # Utiliser l'animation du combo actuel
+        anim = self.attack_animations[self.combo_level]
+        self.attack_frames_right = anim['frames_right']
+        self.attack_frames_left = anim['frames_left']
+        self.attack_frame_durations = anim['frame_durations']
+        self.attack_total_duration_ms = anim['total_duration']
 
         size = self.attack_range
         offset = 10
@@ -308,6 +331,12 @@ class Player:
                 self.attack_time_elapsed_ms = 0
                 self.attack_rect = None
                 self.attack_frame_index = 0
+                # Gérer le combo
+                if self.combo_attack_pressed and self.combo_level < 2:
+                    self.combo_level += 1
+                    self.try_attack()  # Lancer l'attaque suivante immédiatement
+                else:
+                    self.combo_level = 0  # Reset combo
 
         # Animation du joueur (idle vs marche)
         if self.moving and self.run_frames_right:
@@ -323,13 +352,13 @@ class Player:
         """Vérifie si l'attaque touche.
 
         - L'attaque ne peut toucher qu'une seule fois par coup.
-        - La hitbox n'est active qu'à partir de la 2ᵉ frame d'animation.
+        - La hitbox n'est active qu'à la 2e frame d'animation.
         """
         if not self.attacking or not self.attack_rect:
             return False
 
-        # Le premier frame est une phase de préparation (pas de hitbox)
-        if self.attack_frame_index < 1:
+        # Les dégâts sont infligés seulement à la 2e frame (index 1)
+        if self.attack_frame_index != self.attack_hit_frame:
             return False
 
         # Empêche plusieurs touches sur la même attaque
@@ -402,3 +431,8 @@ class Player:
         color = (50, 255, 50) if ratio > 0.5 else (255, 255, 50) if ratio > 0.25 else (255, 50, 50)
         
         pygame.draw.rect(surface, color, (bar_x, bar_y, fill_w, bar_h))
+
+    def draw_name(self, surface, font):
+        name_text = font.render(self.display_name, False, (255, 255, 255))
+        text_rect = name_text.get_rect(center=(self.rect.centerx, self.rect.top - 18))
+        surface.blit(name_text, text_rect)

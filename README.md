@@ -39,3 +39,8 @@ Ce qui change :
 - Play : pas de victoire au cours d'une partie, que Game Over
 - Ajout de la page paramètre
 - Ajout des paramètres 'Résolution de fenètre', 'Taille du texte' et 'Langue'
+
+### 17/04/26
+Ce qui change :
+- Ajout des 3 autres joueurs pour le multi
+- Ajout des images des 3 autres mobs, notamment la bactérie, le virus et le caillot

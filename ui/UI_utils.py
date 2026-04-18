@@ -5,11 +5,10 @@ FONT_PATH = "assets/fonts/PressStart2P-Regular.ttf"
 
 def load_font(size):
     """
-    Charge une police en appliquant l'échelle de texte choisie dans Settings.
+    Charge une police avec une taille fixe.
     Utilise une taille minimale de 6.
     """
-    scale = settings.get("text_scale", 1.0)
-    scaled_size = max(6, int(size * scale))
+    scaled_size = max(6, int(size))
     try:
         return pygame.font.Font(FONT_PATH, scaled_size)
     except Exception:

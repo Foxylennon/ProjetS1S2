@@ -27,7 +27,7 @@ import sys
 from config import settings
 from lang import set_language
 from main_menu.Main_menu import main_menu
-from main_menu.Multiplayer_menu import multiplayer_menu
+from main_menu.Multiplayer_menu import multiplayer_menu, multiplayer_lobby
 from settings.Settings_menu import settings_menu
 from game.Game import game
 from game.Game_multi import game_multiplayer
@@ -177,6 +177,9 @@ def main():
             # On recrée l'objet network pour une nouvelle connexion
             network = Network()
             state = multiplayer_menu(display_manager, network)
+        
+        elif state == "lobby":
+            state = multiplayer_lobby(display_manager, network)
         
         elif state == "settings":
             # Page paramètres

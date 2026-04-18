@@ -20,7 +20,7 @@ def game(dm):
     print("--- JEU SOLO ---")
     
     # pos player when game starts
-    player = Player(50, 50)
+    player = Player(50, 50, player_id=1, name="P1")
 
     # player profile
     profile_img_orig = None
@@ -37,26 +37,49 @@ def game(dm):
         profile_size = (int(192 * ratio), 192)
         profile_img = pygame.transform.smoothscale(profile_img_orig, profile_size)
 
-    # mobs - spawn progressif (max 3)
-    enemies = [Enemy(1000, 500)]
-    max_enemies = 3
+    MONSTER_TYPES = ["tumor", "bacteria", "virus", "caillot"]
+
+    # murs et grille de pathfinding
+    walls = create_level_walls()
+
+    def _is_spawn_position_free(x, y):
+        candidate = pygame.Rect(int(x), int(y), 24, 24)
+        return not any(candidate.colliderect(w.rect) for w in walls)
+
+    def _random_spawn_position():
+        for _ in range(30):
+            spawn_x = random.randint(50, 1230)
+            spawn_y = random.randint(50, 670)
+            if _is_spawn_position_free(spawn_x, spawn_y):
+                return spawn_x, spawn_y
+        return 1000, 500
+
+    spawn_x, spawn_y = _random_spawn_position()
+    enemies = [Enemy(spawn_x, spawn_y, monster_type=random.choice(MONSTER_TYPES))]
+    max_enemies = 12
     spawn_timer_ms = random.randint(2000, 5000)
     # stats : score & timer
     score = 0
     time_elapsed_ms = 0
     # "+1"
     popups = []  # liste de {'text', 'pos', 'ttl', 'vy'}
-    # murs et grille de pathfinding
-    walls = create_level_walls()
-    
+
     from entities.Pathfinding import NavGrid
     nav_grid = NavGrid(1280, 720, 32)
     nav_grid.add_walls(walls)
     
-    # fonts & scales
-    last_text_scale = settings.get("text_scale", 1.0)
+    # fonts
     font = load_font(32)
     font_big = load_font(56)
+    font_small = load_font(18)
+
+    # background image
+    play_bg = None
+    try:
+        play_bg_orig = pygame.image.load("assets/ui/play_bg.png").convert_alpha()
+        play_bg = pygame.transform.smoothscale(play_bg_orig, dm.virtual_res)
+    except Exception:
+        play_bg = None
 
     # buttons
     btn_width = 240
@@ -76,13 +99,6 @@ def game(dm):
     
     while True:
         dt = clock.tick(60)
-
-        # font scale update
-        current_scale = settings.get("text_scale", 1.0)
-        if current_scale != last_text_scale:
-            last_text_scale = current_scale
-            font = load_font(32)
-            font_big = load_font(56)
 
         # scaling btn text
         btn_menu.font = font
@@ -135,21 +151,20 @@ def game(dm):
                 spawn_timer_ms -= dt
                 if spawn_timer_ms <= 0:
                     spawn_timer_ms = random.randint(2000, 5000)
-                    spawn_x = random.randint(50, 1230)
-                    spawn_y = random.randint(50, 670)
-                    enemies.append(Enemy(spawn_x, spawn_y))
+                    spawn_x, spawn_y = _random_spawn_position()
+                    enemies.append(Enemy(spawn_x, spawn_y, monster_type=random.choice(MONSTER_TYPES)))
 
             # Mouvement du joueur
             keys = pygame.key.get_pressed()
             player.handle_input(keys, walls, dt)
             player.update(dt)
 
-            # Ennemi
+            spawned_enemies = []
             for enemy in enemies[:]:
                 if enemy.is_alive():
-                    enemy.update(player.rect, walls, dt, nav_grid)
+                    spawned_enemies.extend(enemy.update(player.rect, walls, dt, nav_grid, enemies))
 
-                    if enemy.is_in_attack_range(player.rect, 10):
+                    if enemy.attack_can_hit(player.rect):
                         player.health = enemy.deal_damage_to_player(player.health)
                         if not player.is_alive():
                             game_over = True
@@ -159,14 +174,14 @@ def game(dm):
                 else:
                     enemies.remove(enemy)
                     score += 1
-
-                    # Popup +1
                     popups.append({
                         "text": "+1",
                         "pos": list(enemy.rect.center),
                         "ttl": 800,
                         "vy": -0.03,
                     })
+
+            enemies.extend(spawned_enemies)
 
             # Mise à jour des popups (animation et durée)
             for popup in popups[:]:
@@ -219,7 +234,10 @@ def game(dm):
                     return "game"
 
         # --- AFFICHAGE ---
-        dm.canvas.fill((30, 30, 30))
+        if play_bg is not None:
+            dm.canvas.blit(play_bg, (0, 0))
+        else:
+            dm.canvas.fill((30, 30, 30))
         
         # Murs
         for wall in walls:
@@ -232,6 +250,7 @@ def game(dm):
         
         # Joueur
         player.draw(dm.canvas)
+        player.draw_name(dm.canvas, font_small)
 
         # Popups (+1)
         for popup in popups:
