@@ -365,6 +365,33 @@ class Enemy:
         self.rect.x = int(self.x)
         self.rect.y = int(self.y)
 
+    def _move_towards_path(self, target_rect, walls, dt_ms: float, nav_grid):
+        if nav_grid is None:
+            self._move_towards(target_rect, walls, dt_ms)
+            return
+
+        current_time = pygame.time.get_ticks()
+        if current_time - self.last_path_update > self.path_update_interval or not self.path:
+            self.last_path_update = current_time
+            self.path = nav_grid.find_path(self.rect.center, target_rect.center)
+            
+        if self.path:
+            next_point = self.path[0]
+            dist = math.hypot(next_point[0] - self.rect.centerx, next_point[1] - self.rect.centery)
+            
+            if dist < 10:
+                self.path.pop(0)
+                if not self.path:
+                    self._move_towards(target_rect, walls, dt_ms)
+                    return
+                next_point = self.path[0]
+                
+            mock_rect = pygame.Rect(0, 0, 2, 2)
+            mock_rect.center = next_point
+            self._move_towards(mock_rect, walls, dt_ms, stop_distance=2.0)
+        else:
+            self._move_towards(target_rect, walls, dt_ms)
+
     def _update_caillot(self, dt_ms: float, walls):
         if self.caillot_phase_timer <= 0:
             if self.caillot_phase == "moving":
@@ -578,7 +605,7 @@ class Enemy:
             spawned.extend(self._advance_animation(dt_ms))
             return spawned
 
-        self._move_towards(player_rect, walls, dt_ms)
+        self._move_towards_path(player_rect, walls, dt_ms, nav_grid)
         if self.state != "attacking":
             self._set_state("moving")
         spawned.extend(self._advance_animation(dt_ms))

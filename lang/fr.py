@@ -29,4 +29,11 @@ TEXTS = {
     "resolution_1366x768": "1366x768",
     "resolution_1536x864": "1536x864",
     "resolution_1280x720": "1280x720",
+    "shop_title": "BOUTIQUE",
+    "button_shop": "BOUTIQUE",
+    "button_close": "FERMER",
+    "item_heal": "Soin (+20 PV)",
+    "item_max_hp": "Sante Max (+10 PV)",
+    "item_damage": "Degats (+1 ATK)",
+    "item_speed": "Score (+100 PTS)",
 }

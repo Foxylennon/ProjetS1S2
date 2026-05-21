@@ -29,4 +29,11 @@ TEXTS = {
     "resolution_1366x768": "1366x768",
     "resolution_1536x864": "1536x864",
     "resolution_1280x720": "1280x720",
+    "shop_title": "SHOP",
+    "button_shop": "SHOP",
+    "button_close": "CLOSE",
+    "item_heal": "Heal (+20 HP)",
+    "item_max_hp": "Max HP (+10 HP)",
+    "item_damage": "Damage (+1 ATK)",
+    "item_speed": "Score (+100 PTS)",
 }

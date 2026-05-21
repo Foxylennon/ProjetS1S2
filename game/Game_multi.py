@@ -11,6 +11,7 @@ from entities.Enemy import Enemy
 from entities.Wall import create_level_walls
 
 from ui.UI_utils import Button, load_font
+from game.Shop import ShopMenu
 
 
 def game_multiplayer(dm, network):
@@ -80,9 +81,13 @@ def game_multiplayer(dm, network):
     btn_spacing = 20
     btn_menu = Button(0, 0, btn_width, btn_height, t("button_menu"), font)
     btn_retry = Button(0, 0, btn_width, btn_height, t("button_retry"), font)
+    btn_shop = Button(140, 12, 120, 40, t("button_shop"), font)
 
     game_over = False
     victory = False
+    
+    shop_menu = ShopMenu(dm.virtual_res)
+    score = 0
     
     clock = pygame.time.Clock()
     
@@ -92,6 +97,7 @@ def game_multiplayer(dm, network):
         # Mettre à jour les polices des boutons
         btn_menu.font = font
         btn_retry.font = font
+        btn_shop.font = font
 
         mouse_clicked = False
         for event in pygame.event.get():
@@ -104,10 +110,13 @@ def game_multiplayer(dm, network):
                     network.close()
                     return "menu"
 
-                if event.key == pygame.K_SPACE and not game_over:
+                if event.key == pygame.K_SPACE and not game_over and not shop_menu.is_open:
                     player.try_attack()
                     if not network.is_host:
                         client_attack_flag = True
+
+                if event.key == pygame.K_b and not game_over and not victory:
+                    shop_menu.is_open = not shop_menu.is_open
 
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 mouse_clicked = True
@@ -117,8 +126,19 @@ def game_multiplayer(dm, network):
 
         other_pos = network.get_other_player_pos()
 
-        if not game_over and not victory:
-            keys = pygame.key.get_pressed()
+        mouse_pos = dm.get_mouse()
+        btn_shop.update(mouse_pos)
+
+        if mouse_clicked and btn_shop.is_clicked(mouse_pos, True) and not game_over and not victory:
+            shop_menu.is_open = not shop_menu.is_open
+
+        keys = pygame.key.get_pressed()
+        if shop_menu.is_open and not game_over and not victory:
+            score = shop_menu.update(mouse_pos, mouse_clicked, keys, player, score)
+
+        enemies_killed_this_tick = 0
+
+        if not game_over and not victory and not shop_menu.is_open:
             player.handle_input(keys, walls, dt)
             player.update(dt)
 
@@ -143,9 +163,12 @@ def game_multiplayer(dm, network):
                             enemy.take_damage(player.attack_damage)
                     else:
                         enemies.remove(enemy)
-                        # Pas de score en multi ?
+                        enemies_killed_this_tick += 1
 
                 enemies.extend(spawned_enemies)
+                
+                if enemies_killed_this_tick > 0:
+                    score += enemies_killed_this_tick
 
                 if "player_attack" in other_pos and other_pos["player_attack"]:
                     for enemy in [e for e in enemies if e.is_alive()]:
@@ -181,6 +204,9 @@ def game_multiplayer(dm, network):
                 if "victory" in other_pos:
                     victory = other_pos["victory"]
 
+        if "enemies_killed" in other_pos and not network.is_host:
+            score += other_pos["enemies_killed"]
+
         # Boutons de fin de partie
         mouse_pos = dm.get_mouse()
         if game_over or victory:
@@ -214,6 +240,7 @@ def game_multiplayer(dm, network):
                 enemies=enemy_data,
                 other_player_health=other_player_health,
                 victory=victory,
+                enemies_killed=enemies_killed_this_tick,
             )
         else:
             network.send_position(
@@ -265,6 +292,11 @@ def game_multiplayer(dm, network):
         else:
             dm.canvas.blit(font.render(f"Host: {other_player_health}", False, (150, 100, 100)), (12, 38))
 
+        score_text = font.render(f"* {score}", False, (255, 255, 255))
+        dm.canvas.blit(score_text, (12, 60))
+
+        btn_shop.draw(dm.canvas)
+
         if game_over:
             overlay = pygame.Surface(dm.canvas.get_size())
             overlay.fill((0, 0, 0))
@@ -287,6 +319,9 @@ def game_multiplayer(dm, network):
             btn_menu.draw(dm.canvas)
             btn_retry.draw(dm.canvas)
         
+        if shop_menu.is_open and not game_over and not victory:
+            shop_menu.draw(dm.canvas)
+
         dm.render()
         
         if not network.connected:

@@ -13,6 +13,7 @@ from entities.Enemy import Enemy
 from entities.Wall import create_level_walls
 
 from ui.UI_utils import Button, load_font
+from game.Shop import ShopMenu
 
 
 def game(dm):
@@ -90,10 +91,13 @@ def game(dm):
     btn_resume = Button(0, 0, btn_width, btn_height, t("button_resume"), font)
 
     btn_pause = Button(12, 12, 120, 40, t("pause_title"), font)
+    btn_shop = Button(140, 12, 120, 40, t("button_shop"), font)
 
     # bool 'game over', 'pause'
     game_over = False
     paused = False
+
+    shop_menu = ShopMenu(dm.virtual_res)
 
     clock = pygame.time.Clock()
     
@@ -105,6 +109,7 @@ def game(dm):
         btn_retry.font = font
         btn_resume.font = font
         btn_pause.font = font
+        btn_shop.font = font
 
         # scaling img
         profile_img = None
@@ -124,11 +129,14 @@ def game(dm):
                 if event.key == pygame.K_ESCAPE: # -> title screen
                     return "menu"
 
-                if event.key == pygame.K_SPACE and not game_over and not paused: # game: player atk
+                if event.key == pygame.K_SPACE and not game_over and not paused and not shop_menu.is_open: # game: player atk
                     player.try_attack()
 
-                if event.key == pygame.K_p and not game_over: # game: btn 'Pause' pressed
+                if event.key == pygame.K_p and not game_over and not shop_menu.is_open: # game: btn 'Pause' pressed
                     paused = not paused 
+
+                if event.key == pygame.K_b and not game_over and not paused:
+                    shop_menu.is_open = not shop_menu.is_open
 
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 mouse_clicked = True
@@ -139,11 +147,20 @@ def game(dm):
         # --- LOGIQUE ---
         mouse_pos = dm.get_mouse()
         btn_pause.update(mouse_pos)
+        btn_shop.update(mouse_pos)
 
-        if mouse_clicked and btn_pause.is_clicked(mouse_pos, True) and not game_over:
+        keys = pygame.key.get_pressed()
+
+        if mouse_clicked and btn_pause.is_clicked(mouse_pos, True) and not game_over and not shop_menu.is_open:
             paused = not paused
 
-        if not game_over and not paused:
+        if mouse_clicked and btn_shop.is_clicked(mouse_pos, True) and not game_over and not paused:
+            shop_menu.is_open = not shop_menu.is_open
+
+        if shop_menu.is_open and not game_over and not paused:
+            score = shop_menu.update(mouse_pos, mouse_clicked, keys, player, score)
+
+        if not game_over and not paused and not shop_menu.is_open:
             time_elapsed_ms += dt
 
             # Generation d'ennemis supplémentaires (jusqu'à max_enemies)
@@ -155,7 +172,6 @@ def game(dm):
                     enemies.append(Enemy(spawn_x, spawn_y, monster_type=random.choice(MONSTER_TYPES)))
 
             # Mouvement du joueur
-            keys = pygame.key.get_pressed()
             player.handle_input(keys, walls, dt)
             player.update(dt)
 
@@ -233,6 +249,8 @@ def game(dm):
                 if btn_retry.is_clicked(mouse_pos, True):
                     return "game"
 
+        # (removed inline shop logic)
+
         # --- AFFICHAGE ---
         if play_bg is not None:
             dm.canvas.blit(play_bg, (0, 0))
@@ -283,7 +301,7 @@ def game(dm):
         dm.canvas.blit(hp_text, hp_pos)
 
         # Score en bas à droite du profil
-        score_text = font.render(f"{t('score_label')} {score}", False, (255, 255, 255))
+        score_text = font.render(f"* {score}", False, (255, 255, 255))
         score_pos = (profile_x + (profile_size[0] if profile_size[0] > 0 else 0) + 10, dm.virtual_res[1] - score_text.get_height() - 2)
         dm.canvas.blit(score_text, score_pos)
 
@@ -296,6 +314,7 @@ def game(dm):
 
         # Bouton pause
         btn_pause.draw(dm.canvas)
+        btn_shop.draw(dm.canvas)
 
         controls = font.render(t("controls_hint"), False, (150, 150, 150))
         dm.canvas.blit(controls, (150, 160))
@@ -313,7 +332,7 @@ def game(dm):
             go_text = font_big.render(t("game_over"), False, (255, 50, 50))
             dm.canvas.blit(go_text, go_text.get_rect(center=(center[0], title_y)))
 
-            score_text = font.render(f"{t('score_label')}: {score}", False, (255, 255, 255))
+            score_text = font.render(f"* {score}", False, (255, 255, 255))
             dm.canvas.blit(score_text, score_text.get_rect(center=(center[0], title_y + 70)))
 
             time_text = font.render(
@@ -353,6 +372,10 @@ def game(dm):
             btn_menu.draw(dm.canvas)
             btn_resume.draw(dm.canvas)
             btn_retry.draw(dm.canvas)
+
+        # Shop UI
+        if shop_menu.is_open and not game_over:
+            shop_menu.draw(dm.canvas)
 
         dm.render()
         clock.tick(60)
