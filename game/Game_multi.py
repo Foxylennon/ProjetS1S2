@@ -8,7 +8,7 @@ from config import settings
 from lang import t
 from entities.Player import Player
 from entities.Enemy import Enemy
-from entities.Wall import create_level_walls
+from entities.Map import Map
 
 from ui.UI_utils import Button, load_font
 from game.Shop import ShopMenu
@@ -26,27 +26,17 @@ def game_multiplayer(dm, network):
         player = Player(280, 140, player_id=2, name="P2")
         other_player = Player(0, 0, player_id=1, name="P1")
 
-    spawn_positions = [
-        (160, 90),
-        (320, 90),
-        (480, 90),
-        (640, 90),
-        (160, 250),
-        (320, 250),
-        (480, 250),
-        (640, 250),
-        (160, 410),
-        (320, 410),
-        (480, 410),
-        (640, 410),
-    ]
-    MONSTER_TYPES = ["tumor", "bacteria", "virus", "caillot"]
-    enemies = [Enemy(x, y, monster_type=random.choice(MONSTER_TYPES)) for x, y in spawn_positions]
-    walls = create_level_walls()
-    
+    game_map = Map(3, 3)
+    game_map.create_map()
+
     from entities.Pathfinding import NavGrid
-    nav_grid = NavGrid(1280, 720, 32)
-    nav_grid.add_walls(walls)
+    def get_nav_grid(current_room):
+        ng = NavGrid(1280, 720, 32)
+        active_obstacles = current_room.walls + [d for d in current_room.doors if d.is_locked]
+        ng.add_walls(active_obstacles)
+        return ng
+
+    nav_grid = get_nav_grid(game_map.get_current_room())
     
     other_player_health = 100
     client_attack_flag = False
@@ -81,7 +71,6 @@ def game_multiplayer(dm, network):
     btn_spacing = 20
     btn_menu = Button(0, 0, btn_width, btn_height, t("button_menu"), font)
     btn_retry = Button(0, 0, btn_width, btn_height, t("button_retry"), font)
-    btn_shop = Button(140, 12, 120, 40, t("button_shop"), font)
 
     game_over = False
     victory = False
@@ -97,7 +86,6 @@ def game_multiplayer(dm, network):
         # Mettre à jour les polices des boutons
         btn_menu.font = font
         btn_retry.font = font
-        btn_shop.font = font
 
         mouse_clicked = False
         for event in pygame.event.get():
@@ -115,8 +103,10 @@ def game_multiplayer(dm, network):
                     if not network.is_host:
                         client_attack_flag = True
 
-                if event.key == pygame.K_b and not game_over and not victory:
-                    shop_menu.is_open = not shop_menu.is_open
+                if event.key == pygame.K_e and not game_over and not victory:
+                    current_room = game_map.get_current_room()
+                    if current_room.is_shop and current_room.npc and current_room.npc.is_near(player.rect):
+                        shop_menu.is_open = not shop_menu.is_open
 
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 mouse_clicked = True
@@ -127,10 +117,6 @@ def game_multiplayer(dm, network):
         other_pos = network.get_other_player_pos()
 
         mouse_pos = dm.get_mouse()
-        btn_shop.update(mouse_pos)
-
-        if mouse_clicked and btn_shop.is_clicked(mouse_pos, True) and not game_over and not victory:
-            shop_menu.is_open = not shop_menu.is_open
 
         keys = pygame.key.get_pressed()
         if shop_menu.is_open and not game_over and not victory:
@@ -138,16 +124,40 @@ def game_multiplayer(dm, network):
 
         enemies_killed_this_tick = 0
 
+        current_room = game_map.get_current_room()
+        active_obstacles = current_room.walls + [d for d in current_room.doors if d.is_locked]
+
         if not game_over and not victory and not shop_menu.is_open:
-            player.handle_input(keys, walls, dt)
+            player.handle_input(keys, active_obstacles, dt)
             player.update(dt)
 
             if network.is_host:
+                current_room.update_room()
+                
+                # Gestion des portes (Host)
+                for door in current_room.doors:
+                    if door.check_collision(player) or door.check_collision(other_player):
+                        game_map.change_room(door, player, dm.virtual_res[0], dm.virtual_res[1])
+                        # L'autre joueur change aussi et on le décale
+                        if door.direction == "haut":
+                            other_player.y = dm.virtual_res[1] - other_player.rect.height - 60
+                        elif door.direction == "bas":
+                            other_player.y = 60
+                        elif door.direction == "gauche":
+                            other_player.x = dm.virtual_res[0] - other_player.rect.width - 60
+                        elif door.direction == "droite":
+                            other_player.x = 60
+                        other_player.rect.x = int(other_player.x)
+                        other_player.rect.y = int(other_player.y)
+                        
+                        current_room = game_map.get_current_room()
+                        nav_grid = get_nav_grid(current_room)
+                        break
                 spawned_enemies = []
-                for enemy in enemies[:]:
+                for enemy in current_room.enemies[:]:
                     if enemy.is_alive() or not enemy.is_faint_animation_complete():
                         target_rect = get_closest_target(player.rect, other_pos, enemy.rect)
-                        spawned_enemies.extend(enemy.update(target_rect, walls, dt, nav_grid, enemies))
+                        spawned_enemies.extend(enemy.update(target_rect, active_obstacles, dt, nav_grid, current_room.enemies))
 
                         if enemy.attack_can_hit(player.rect):
                             player.health = enemy.deal_damage_to_player(player.health)
@@ -159,19 +169,19 @@ def game_multiplayer(dm, network):
                             if enemy.attack_can_hit(other_rect):
                                 other_player_health = enemy.deal_damage_to_player(other_player_health)
 
-                        if player.check_attack_hit(enemy.rect, walls):
+                        if player.check_attack_hit(enemy.rect, active_obstacles):
                             enemy.take_damage(player.attack_damage)
                     else:
-                        enemies.remove(enemy)
+                        current_room.enemies.remove(enemy)
                         enemies_killed_this_tick += 1
 
-                enemies.extend(spawned_enemies)
+                current_room.enemies.extend(spawned_enemies)
                 
                 if enemies_killed_this_tick > 0:
                     score += enemies_killed_this_tick
 
                 if "player_attack" in other_pos and other_pos["player_attack"]:
-                    for enemy in [e for e in enemies if e.is_alive()]:
+                    for enemy in [e for e in current_room.enemies if e.is_alive()]:
                         if "x" in other_pos and "y" in other_pos:
                             other_rect = pygame.Rect(other_pos["x"], other_pos["y"], 16, 16)
                             # On utilise une distance pour la hitbox d'attaque du client 
@@ -180,25 +190,31 @@ def game_multiplayer(dm, network):
                             if (dx*dx) + (dy*dy) < 3000:
                                 enemy.take_damage(player.attack_damage)
 
-                victory = all(not enemy.is_alive() for enemy in enemies)
+                # Victoire non gérée simplement par la salle vide dans un Rogue-like
+                # victory = ...
             else:
-                # Le client ne calcule pas l'ennemi, il affiche simplement la position reçue
+                # Le client vérifie si la salle a changé
+                if "room_x" in other_pos and "room_y" in other_pos:
+                    rx, ry = other_pos["room_x"], other_pos["room_y"]
+                    if (rx, ry) != game_map.current_room_coords:
+                        game_map.current_room_coords = (rx, ry)
+                        game_map.get_current_room().on_enter()
+                        current_room = game_map.get_current_room()
+
+                # Le client met à jour les ennemis à partir des données
                 if "enemies" in other_pos:
                     enemy_list = other_pos["enemies"]
-                    for idx, enemy_data in enumerate(enemy_list):
+                    current_room.enemies.clear()
+                    for enemy_data in enemy_list:
                         enemy_type = enemy_data.get("type", "tumor")
-                        if idx < len(enemies):
-                            if enemies[idx].monster_type != enemy_type:
-                                enemies[idx] = Enemy(enemy_data.get("x", 0), enemy_data.get("y", 0), monster_type=enemy_type)
-                            enemies[idx].x = float(enemy_data.get("x", enemies[idx].x))
-                            enemies[idx].y = float(enemy_data.get("y", enemies[idx].y))
-                            enemies[idx].rect.x = int(enemies[idx].x)
-                            enemies[idx].rect.y = int(enemies[idx].y)
-                            enemies[idx].health = enemy_data.get("health", enemies[idx].health)
-                        else:
-                            new_enemy = Enemy(enemy_data.get("x", 0), enemy_data.get("y", 0), monster_type=enemy_type)
-                            new_enemy.health = enemy_data.get("health", new_enemy.health)
-                            enemies.append(new_enemy)
+                        new_enemy = Enemy(enemy_data.get("x", 0), enemy_data.get("y", 0), monster_type=enemy_type)
+                        new_enemy.health = enemy_data.get("health", 100)
+                        current_room.enemies.append(new_enemy)
+                        
+                # On synchronise l'état de nettoyage de la salle pour le rendu des portes
+                current_room.is_cleared = len(current_room.enemies) == 0
+                for door in current_room.doors:
+                    door.is_locked = not current_room.is_cleared
                 if "other_player_health" in other_pos:
                     player.health = other_pos["other_player_health"]
                 if "victory" in other_pos:
@@ -231,7 +247,7 @@ def game_multiplayer(dm, network):
         if network.is_host:
             enemy_data = [
                 {"x": enemy.x, "y": enemy.y, "health": enemy.health, "type": enemy.monster_type}
-                for enemy in enemies
+                for enemy in current_room.enemies
             ]
             network.send_position(
                 player.rect.x,
@@ -240,7 +256,8 @@ def game_multiplayer(dm, network):
                 enemies=enemy_data,
                 other_player_health=other_player_health,
                 victory=victory,
-                enemies_killed=enemies_killed_this_tick,
+                room_x=game_map.current_room_coords[0],
+                room_y=game_map.current_room_coords[1],
             )
         else:
             network.send_position(
@@ -271,12 +288,21 @@ def game_multiplayer(dm, network):
         else:
             dm.canvas.fill((30, 30, 30))
         
-        for wall in walls:
+        for wall in current_room.walls:
             wall.draw(dm.canvas)
+            
+        for door in current_room.doors:
+            door.draw(dm.canvas)
         
-        for enemy in enemies:
+        for enemy in current_room.enemies:
             if enemy.is_alive():
                 enemy.draw(dm.canvas)
+                
+        # NPC Shop
+        if current_room.is_shop and current_room.npc:
+            current_room.npc.draw(dm.canvas)
+            if current_room.npc.is_near(player.rect):
+                current_room.npc.draw_interaction_hint(dm.canvas)
         
         other_player.draw(dm.canvas)
         other_player.draw_name(dm.canvas, font)
@@ -294,8 +320,6 @@ def game_multiplayer(dm, network):
 
         score_text = font.render(f"* {score}", False, (255, 255, 255))
         dm.canvas.blit(score_text, (12, 60))
-
-        btn_shop.draw(dm.canvas)
 
         if game_over:
             overlay = pygame.Surface(dm.canvas.get_size())

@@ -10,6 +10,7 @@ class ShopCard:
         self.font = font
         self.font_small = font_small
         self.is_hovered = False
+        self.purchased = False
         
         # Load image
         self.image = None
@@ -27,8 +28,11 @@ class ShopCard:
         return self.is_hovered and mouse_pressed
 
     def draw(self, surface):
-        # Hover effect
-        color = (min(255, self.bg_color[0] + 30), min(255, self.bg_color[1] + 30), min(255, self.bg_color[2] + 30)) if self.is_hovered else self.bg_color
+        # Hover effect et couleur si acheté
+        if self.purchased:
+            color = (150, 150, 150)
+        else:
+            color = (min(255, self.bg_color[0] + 30), min(255, self.bg_color[1] + 30), min(255, self.bg_color[2] + 30)) if self.is_hovered else self.bg_color
         
         # Shadow
         shadow_rect = self.rect.copy()
@@ -43,7 +47,10 @@ class ShopCard:
         pygame.draw.rect(surface, (20, 20, 20), self.rect, 4, border_radius=10)
 
         # Draw cost (top left)
-        cost_text = self.font_small.render(f"* {self.item_data['cost']}", True, (20, 20, 20))
+        if self.purchased:
+            cost_text = self.font_small.render("VENDU", True, (20, 20, 20))
+        else:
+            cost_text = self.font_small.render(f"* {self.item_data['cost']}", True, (20, 20, 20))
         surface.blit(cost_text, (self.rect.x + 15, self.rect.y + 15))
 
         # Draw image (center top)
@@ -88,28 +95,28 @@ class ShopMenu:
         
         self.available_items = [
             {
-                "id": "anticorps", "name_key": "item_damage", "cost": 20,
+                "id": "anticorps", "name_key": "item_damage", "cost": 10,
                 "img_path": "assets/ui/item_protein/item-protein-anticorps.png",
                 "stats": ["ATK +1", "CRIT +5%"],
                 "effect": lambda p: setattr(p, 'attack_damage', p.attack_damage + 1)
             },
             {
-                "id": "collagene", "name_key": "item_max_hp", "cost": 15,
+                "id": "collagene", "name_key": "item_max_hp", "cost": 10,
                 "img_path": "assets/ui/item_protein/item-protein-collagene.png",
                 "stats": ["MAX HP +10"],
                 "effect": lambda p: (setattr(p, 'max_health', p.max_health + 10), setattr(p, 'health', p.health + 10))
             },
             {
-                "id": "hemoglobine", "name_key": "item_heal", "cost": 10,
+                "id": "hemoglobine", "name_key": "item_heal", "cost": 5,
                 "img_path": "assets/ui/item_protein/item-protein-hemoglobine.png",
                 "stats": ["HP +20"],
                 "effect": lambda p: setattr(p, 'health', min(p.health + 20, p.max_health))
             },
             {
-                "id": "lactase", "name_key": "item_speed", "cost": 5,
+                "id": "lactase", "name_key": "item_speed", "cost": 10,
                 "img_path": "assets/ui/item_protein/item-protein-lactase.png",
-                "stats": ["SCORE +100"],
-                "effect": None # Handle specially for score
+                "stats": ["SPEED +50"],
+                "effect": lambda p: setattr(p, 'speed', p.speed + 50)
             }
         ]
 
@@ -141,7 +148,7 @@ class ShopMenu:
             if card.is_hovered:
                 hovered_card = card
 
-        buy_attempted = mouse_clicked and hovered_card is not None
+        buy_attempted = mouse_clicked and hovered_card is not None and not hovered_card.purchased
 
         if buy_attempted:
             cost = hovered_card.item_data["cost"]
@@ -149,10 +156,10 @@ class ShopMenu:
                 new_score = current_score - cost
                 
                 # Apply effect
-                if hovered_card.item_data["id"] == "lactase":
-                    new_score += 100
-                else:
+                if hovered_card.item_data["effect"] is not None:
                     hovered_card.item_data["effect"](player)
+                
+                hovered_card.purchased = True
                 
                 self.is_open = False # Close shop after buy
                 return new_score

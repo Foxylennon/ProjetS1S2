@@ -10,7 +10,7 @@ from config import settings
 from lang import t
 from entities.Player import Player
 from entities.Enemy import Enemy
-from entities.Wall import create_level_walls
+from entities.Map import Map
 
 from ui.UI_utils import Button, load_font
 from game.Shop import ShopMenu
@@ -38,27 +38,9 @@ def game(dm):
         profile_size = (int(192 * ratio), 192)
         profile_img = pygame.transform.smoothscale(profile_img_orig, profile_size)
 
-    MONSTER_TYPES = ["tumor", "bacteria", "virus", "caillot"]
-
-    # murs et grille de pathfinding
-    walls = create_level_walls()
-
-    def _is_spawn_position_free(x, y):
-        candidate = pygame.Rect(int(x), int(y), 24, 24)
-        return not any(candidate.colliderect(w.rect) for w in walls)
-
-    def _random_spawn_position():
-        for _ in range(30):
-            spawn_x = random.randint(50, 1230)
-            spawn_y = random.randint(50, 670)
-            if _is_spawn_position_free(spawn_x, spawn_y):
-                return spawn_x, spawn_y
-        return 1000, 500
-
-    spawn_x, spawn_y = _random_spawn_position()
-    enemies = [Enemy(spawn_x, spawn_y, monster_type=random.choice(MONSTER_TYPES))]
-    max_enemies = 12
-    spawn_timer_ms = random.randint(2000, 5000)
+    # Map generation
+    game_map = Map(3, 3)
+    game_map.create_map()
     # stats : score & timer
     score = 0
     time_elapsed_ms = 0
@@ -66,8 +48,14 @@ def game(dm):
     popups = []  # liste de {'text', 'pos', 'ttl', 'vy'}
 
     from entities.Pathfinding import NavGrid
-    nav_grid = NavGrid(1280, 720, 32)
-    nav_grid.add_walls(walls)
+    
+    def get_nav_grid(current_room):
+        ng = NavGrid(1280, 720, 32)
+        active_obstacles = current_room.walls + [d for d in current_room.doors if d.is_locked]
+        ng.add_walls(active_obstacles)
+        return ng
+
+    nav_grid = get_nav_grid(game_map.get_current_room())
     
     # fonts
     font = load_font(32)
@@ -91,7 +79,6 @@ def game(dm):
     btn_resume = Button(0, 0, btn_width, btn_height, t("button_resume"), font)
 
     btn_pause = Button(12, 12, 120, 40, t("pause_title"), font)
-    btn_shop = Button(140, 12, 120, 40, t("button_shop"), font)
 
     # bool 'game over', 'pause'
     game_over = False
@@ -109,7 +96,6 @@ def game(dm):
         btn_retry.font = font
         btn_resume.font = font
         btn_pause.font = font
-        btn_shop.font = font
 
         # scaling img
         profile_img = None
@@ -135,8 +121,10 @@ def game(dm):
                 if event.key == pygame.K_p and not game_over and not shop_menu.is_open: # game: btn 'Pause' pressed
                     paused = not paused 
 
-                if event.key == pygame.K_b and not game_over and not paused:
-                    shop_menu.is_open = not shop_menu.is_open
+                if event.key == pygame.K_e and not game_over and not paused:
+                    current_room = game_map.get_current_room()
+                    if current_room.is_shop and current_room.npc and current_room.npc.is_near(player.rect):
+                        shop_menu.is_open = not shop_menu.is_open
 
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 mouse_clicked = True
@@ -147,15 +135,11 @@ def game(dm):
         # --- LOGIQUE ---
         mouse_pos = dm.get_mouse()
         btn_pause.update(mouse_pos)
-        btn_shop.update(mouse_pos)
 
         keys = pygame.key.get_pressed()
 
         if mouse_clicked and btn_pause.is_clicked(mouse_pos, True) and not game_over and not shop_menu.is_open:
             paused = not paused
-
-        if mouse_clicked and btn_shop.is_clicked(mouse_pos, True) and not game_over and not paused:
-            shop_menu.is_open = not shop_menu.is_open
 
         if shop_menu.is_open and not game_over and not paused:
             score = shop_menu.update(mouse_pos, mouse_clicked, keys, player, score)
@@ -163,32 +147,36 @@ def game(dm):
         if not game_over and not paused and not shop_menu.is_open:
             time_elapsed_ms += dt
 
-            # Generation d'ennemis supplémentaires (jusqu'à max_enemies)
-            if len(enemies) < max_enemies:
-                spawn_timer_ms -= dt
-                if spawn_timer_ms <= 0:
-                    spawn_timer_ms = random.randint(2000, 5000)
-                    spawn_x, spawn_y = _random_spawn_position()
-                    enemies.append(Enemy(spawn_x, spawn_y, monster_type=random.choice(MONSTER_TYPES)))
+            current_room = game_map.get_current_room()
+            current_room.update_room()
+            
+            # Vérifier les collisions avec les portes
+            for door in current_room.doors:
+                if door.check_collision(player):
+                    game_map.change_room(door, player, dm.virtual_res[0], dm.virtual_res[1])
+                    current_room = game_map.get_current_room()
+                    nav_grid = get_nav_grid(current_room)
+                    break
 
-            # Mouvement du joueur
-            player.handle_input(keys, walls, dt)
+            # Mouvement du joueur (attention aux murs + portes verrouillées)
+            active_obstacles = current_room.walls + [d for d in current_room.doors if d.is_locked]
+            player.handle_input(keys, active_obstacles, dt)
             player.update(dt)
 
             spawned_enemies = []
-            for enemy in enemies[:]:
+            for enemy in current_room.enemies[:]:
                 if enemy.is_alive() or not enemy.is_faint_animation_complete():
-                    spawned_enemies.extend(enemy.update(player.rect, walls, dt, nav_grid, enemies))
+                    spawned_enemies.extend(enemy.update(player.rect, active_obstacles, dt, nav_grid, current_room.enemies))
 
                     if enemy.attack_can_hit(player.rect):
                         player.health = enemy.deal_damage_to_player(player.health)
                         if not player.is_alive():
                             game_over = True
 
-                    if player.check_attack_hit(enemy.rect, walls):
+                    if player.check_attack_hit(enemy.rect, active_obstacles):
                         enemy.take_damage(player.attack_damage)
                 else:
-                    enemies.remove(enemy)
+                    current_room.enemies.remove(enemy)
                     score += 1
                     popups.append({
                         "text": "+1",
@@ -197,7 +185,7 @@ def game(dm):
                         "vy": -0.03,
                     })
 
-            enemies.extend(spawned_enemies)
+            current_room.enemies.extend(spawned_enemies)
 
             # Mise à jour des popups (animation et durée)
             for popup in popups[:]:
@@ -257,14 +245,25 @@ def game(dm):
         else:
             dm.canvas.fill((30, 30, 30))
         
+        current_room = game_map.get_current_room()
         # Murs
-        for wall in walls:
+        for wall in current_room.walls:
             wall.draw(dm.canvas)
+            
+        # Portes
+        for door in current_room.doors:
+            door.draw(dm.canvas)
         
         # Ennemi
-        for enemy in enemies:
+        for enemy in current_room.enemies:
             if enemy.is_alive():
                 enemy.draw(dm.canvas)
+                
+        # NPC Shop
+        if current_room.is_shop and current_room.npc:
+            current_room.npc.draw(dm.canvas)
+            if current_room.npc.is_near(player.rect):
+                current_room.npc.draw_interaction_hint(dm.canvas)
         
         # Joueur
         player.draw(dm.canvas)
@@ -314,7 +313,6 @@ def game(dm):
 
         # Bouton pause
         btn_pause.draw(dm.canvas)
-        btn_shop.draw(dm.canvas)
 
         controls = font.render(t("controls_hint"), False, (150, 150, 150))
         dm.canvas.blit(controls, (150, 160))
