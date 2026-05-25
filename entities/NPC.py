@@ -14,13 +14,28 @@ class NPC:
         self.color = (50, 200, 255)  # Couleur bleue claire pour se distinguer
         self.font = load_font(18)
         
-    def draw(self, surface):
-        # Dessiner le PNJ
-        pygame.draw.rect(surface, self.color, self.rect)
+        try:
+            # Le joueur a demandé "crim_idle.png" mais le fichier est "chrom_idle.png"
+            raw_img = pygame.image.load("assets/sprites/npc/chrom/chrom_idle.png").convert_alpha()
+            # L'image originale fait 400x270. On la redimensionne proportionnellement.
+            target_h = 70
+            target_w = int(target_h * (raw_img.get_width() / raw_img.get_height()))
+            self.image = pygame.transform.smoothscale(raw_img, (target_w, target_h))
+        except Exception as e:
+            print(f"Erreur chargement image NPC: {e}")
+            self.image = None
         
-        # Yeux pour lui donner une orientation "vers le bas" (simple détail visuel)
-        pygame.draw.rect(surface, (0, 0, 0), (self.rect.x + 8, self.rect.y + 10, 6, 6))
-        pygame.draw.rect(surface, (0, 0, 0), (self.rect.x + 26, self.rect.y + 10, 6, 6))
+    def draw(self, surface):
+        if hasattr(self, 'image') and self.image:
+            img_rect = self.image.get_rect(center=self.rect.center)
+            surface.blit(self.image, img_rect)
+        else:
+            # Dessiner le PNJ en placeholder
+            pygame.draw.rect(surface, self.color, self.rect)
+            
+            # Yeux pour lui donner une orientation "vers le bas" (simple détail visuel)
+            pygame.draw.rect(surface, (0, 0, 0), (self.rect.x + 8, self.rect.y + 10, 6, 6))
+            pygame.draw.rect(surface, (0, 0, 0), (self.rect.x + 26, self.rect.y + 10, 6, 6))
 
     def draw_interaction_hint(self, surface):
         """Dessine l'indication d'interaction au-dessus du PNJ."""

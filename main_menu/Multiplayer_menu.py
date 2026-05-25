@@ -23,6 +23,7 @@ COMMENT TROUVER SON IP ?
 import pygame
 import socket
 import threading
+import random
 from ui.UI_utils import Button, load_font
 
 
@@ -391,7 +392,7 @@ def multiplayer_lobby(dm, network):
                     joined = network.connected
                     remote_ready = network.other_player_pos.get("lobby_ready", False)
                     if joined and remote_ready:
-                        network.send_start_game()
+                        network.send_start_game(random.randint(0, 1000000))
                         return "game_multi"
 
                 if not network.is_host and btn_ready.is_clicked(mouse_pos, True):

@@ -26,8 +26,15 @@ def game_multiplayer(dm, network):
         player = Player(280, 140, player_id=2, name="P2")
         other_player = Player(0, 0, player_id=1, name="P1")
 
+    map_seed = network.other_player_pos.get("map_seed", 42) if not network.is_host else network.other_player_pos.get("map_seed", random.randint(0, 1000000))
+    if network.is_host:
+        network.other_player_pos["map_seed"] = map_seed
+
+    random.seed(map_seed)
     game_map = Map(3, 3)
     game_map.create_map()
+    random.seed()
+
 
     from entities.Pathfinding import NavGrid
     def get_nav_grid(current_room):
@@ -40,6 +47,7 @@ def game_multiplayer(dm, network):
     
     other_player_health = 100
     client_attack_flag = False
+    host_attack_flag = False
     
     def get_closest_target(player_rect, other_pos, enemy_rect):
         if "x" in other_pos and "y" in other_pos:
@@ -99,9 +107,11 @@ def game_multiplayer(dm, network):
                     return "menu"
 
                 if event.key == pygame.K_SPACE and not game_over and not shop_menu.is_open:
-                    player.try_attack()
-                    if not network.is_host:
-                        client_attack_flag = True
+                    if player.try_attack():
+                        if not network.is_host:
+                            client_attack_flag = True
+                        else:
+                            host_attack_flag = True
 
                 if event.key == pygame.K_e and not game_over and not victory:
                     current_room = game_map.get_current_room()
@@ -136,7 +146,7 @@ def game_multiplayer(dm, network):
                 
                 # Gestion des portes (Host)
                 for door in current_room.doors:
-                    if door.check_collision(player) or door.check_collision(other_player):
+                    if door.check_collision(player):
                         game_map.change_room(door, player, dm.virtual_res[0], dm.virtual_res[1])
                         # L'autre joueur change aussi et on le décale
                         if door.direction == "haut":
@@ -197,19 +207,57 @@ def game_multiplayer(dm, network):
                 if "room_x" in other_pos and "room_y" in other_pos:
                     rx, ry = other_pos["room_x"], other_pos["room_y"]
                     if (rx, ry) != game_map.current_room_coords:
+                        dx = rx - game_map.current_room_coords[0]
+                        dy = ry - game_map.current_room_coords[1]
+                        
                         game_map.current_room_coords = (rx, ry)
                         game_map.get_current_room().on_enter()
                         current_room = game_map.get_current_room()
+                        
+                        offset = 60
+                        if dy == -1:
+                            player.y = dm.virtual_res[1] - player.rect.height - offset
+                        elif dy == 1:
+                            player.y = offset
+                        elif dx == -1:
+                            player.x = dm.virtual_res[0] - player.rect.width - offset
+                        elif dx == 1:
+                            player.x = offset
+                            
+                        player.rect.x = int(player.x)
+                        player.rect.y = int(player.y)
 
                 # Le client met à jour les ennemis à partir des données
                 if "enemies" in other_pos:
                     enemy_list = other_pos["enemies"]
-                    current_room.enemies.clear()
-                    for enemy_data in enemy_list:
-                        enemy_type = enemy_data.get("type", "tumor")
-                        new_enemy = Enemy(enemy_data.get("x", 0), enemy_data.get("y", 0), monster_type=enemy_type)
-                        new_enemy.health = enemy_data.get("health", 100)
-                        current_room.enemies.append(new_enemy)
+                    new_enemies = []
+                    for e_data in enemy_list:
+                        e_type = e_data.get("type", "tumor")
+                        existing = next((e for e in current_room.enemies if e.monster_type == e_type), None)
+                        if existing:
+                            current_room.enemies.remove(existing)
+                            existing.x = e_data.get("x", existing.x)
+                            existing.y = e_data.get("y", existing.y)
+                            existing.rect.x = int(existing.x)
+                            existing.rect.y = int(existing.y)
+                            existing.health = e_data.get("health", existing.health)
+                            existing.facing_left = e_data.get("facing_left", existing.facing_left)
+                            existing.previous_horizontal = existing.facing_left
+                            existing.moving = e_data.get("moving", existing.moving)
+                            new_enemies.append(existing)
+                        else:
+                            new_enemy = Enemy(e_data.get("x", 0), e_data.get("y", 0), monster_type=e_type)
+                            new_enemy.health = e_data.get("health", 100)
+                            new_enemy.facing_left = e_data.get("facing_left", False)
+                            new_enemy.previous_horizontal = new_enemy.facing_left
+                            new_enemy.moving = e_data.get("moving", False)
+                            new_enemies.append(new_enemy)
+                    
+                    current_room.enemies = new_enemies
+                    
+                    # On anime les ennemis côté client pour voir l'effet du moving/facing
+                    for e in current_room.enemies:
+                        e._advance_animation(dt)
                         
                 # On synchronise l'état de nettoyage de la salle pour le rendu des portes
                 current_room.is_cleared = len(current_room.enemies) == 0
@@ -246,7 +294,7 @@ def game_multiplayer(dm, network):
 
         if network.is_host:
             enemy_data = [
-                {"x": enemy.x, "y": enemy.y, "health": enemy.health, "type": enemy.monster_type}
+                {"x": enemy.x, "y": enemy.y, "health": enemy.health, "type": enemy.monster_type, "facing_left": enemy.facing_left, "moving": enemy.moving}
                 for enemy in current_room.enemies
             ]
             network.send_position(
@@ -258,13 +306,19 @@ def game_multiplayer(dm, network):
                 victory=victory,
                 room_x=game_map.current_room_coords[0],
                 room_y=game_map.current_room_coords[1],
+                facing_left=(player.previous_horizontal == 1),
+                moving=player.moving,
+                player_attack=host_attack_flag
             )
+            host_attack_flag = False
         else:
             network.send_position(
                 player.rect.x,
                 player.rect.y,
                 player_health=player.health,
                 player_attack=client_attack_flag,
+                facing_left=(player.previous_horizontal == 1),
+                moving=player.moving
             )
             client_attack_flag = False
 
@@ -274,6 +328,17 @@ def game_multiplayer(dm, network):
             other_player.y = float(other_pos["y"])
             other_player.rect.x = int(other_player.x)
             other_player.rect.y = int(other_player.y)
+            
+        if "moving" in other_pos:
+            other_player.moving = other_pos["moving"]
+        if "facing_left" in other_pos:
+            other_player.previous_horizontal = 1 if other_pos["facing_left"] else 0
+            
+        if "player_attack" in other_pos and other_pos["player_attack"]:
+            if not other_player.attacking:
+                other_player.try_attack()
+                
+        other_player.update(dt)
         if "player_health" in other_pos:
             if not network.is_host:
                 other_player_health = other_pos["player_health"]
