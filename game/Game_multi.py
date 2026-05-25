@@ -20,10 +20,10 @@ def game_multiplayer(dm, network):
     
     # Position de spawn selon Host/Client
     if network.is_host:
-        player = Player(200, 200, player_id=1, name="P1")
+        player = Player(100, 100, player_id=1, name="P1")
         other_player = Player(0, 0, player_id=2, name="P2")
     else:
-        player = Player(280, 140, player_id=2, name="P2")
+        player = Player(150, 100, player_id=2, name="P2")
         other_player = Player(0, 0, player_id=1, name="P1")
 
     map_seed = network.other_player_pos.get("map_seed", 42)
