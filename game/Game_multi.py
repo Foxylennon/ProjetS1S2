@@ -82,6 +82,7 @@ def game_multiplayer(dm, network):
     
     shop_menu = ShopMenu(dm.virtual_res)
     score = 0
+    total_kills = 0
     
     clock = pygame.time.Clock()
     
@@ -183,6 +184,7 @@ def game_multiplayer(dm, network):
                 
                 if enemies_killed_this_tick > 0:
                     score += enemies_killed_this_tick
+                    total_kills += enemies_killed_this_tick
 
                 if "player_attack" in other_pos and other_pos["player_attack"]:
                     for enemy in [e for e in current_room.enemies if e.is_alive()]:
@@ -277,8 +279,12 @@ def game_multiplayer(dm, network):
                 if "victory" in other_pos:
                     victory = other_pos["victory"]
 
-        if "enemies_killed" in other_pos and not network.is_host:
-            score += other_pos["enemies_killed"]
+        if "total_kills" in other_pos and not network.is_host:
+            kills_received = other_pos["total_kills"]
+            if kills_received > total_kills:
+                diff = kills_received - total_kills
+                score += diff
+                total_kills = kills_received
 
         # Boutons de fin de partie
         mouse_pos = dm.get_mouse()
@@ -317,7 +323,8 @@ def game_multiplayer(dm, network):
                 room_y=game_map.current_room_coords[1],
                 facing_left=(player.previous_horizontal == 1),
                 moving=player.moving,
-                player_attack=host_attack_flag
+                player_attack=host_attack_flag,
+                total_kills=total_kills
             )
             host_attack_flag = False
         else:

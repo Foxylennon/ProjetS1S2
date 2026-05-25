@@ -154,11 +154,11 @@ class Network:
                     "moving": moving,
                 })
             elif packet_type == 2:
-                # [Host -> Client] format: header(1) + x(f) + y(f) + hp(f) + other_hp(f) + vic(?) + num_enemies(B) + room_x(B) + room_y(B) + attack(?) + facing_left(?) + moving(?) = 24 bytes
-                _, x, y, hp, other_hp, vic, num_enemies, room_x, room_y, attack, facing_left, moving = struct.unpack('!Bffff?BBB???', payload[:24])
+                # [Host -> Client] format: header(1) + x(f) + y(f) + hp(f) + other_hp(f) + vic(?) + num_enemies(B) + room_x(B) + room_y(B) + attack(?) + facing_left(?) + moving(?) + total_kills(H) = 26 bytes
+                _, x, y, hp, other_hp, vic, num_enemies, room_x, room_y, attack, facing_left, moving, total_kills = struct.unpack('!Bffff?BBB???H', payload[:26])
                 
                 enemies = []
-                offset = 24
+                offset = 26
                 for _ in range(num_enemies):
                     ex, ey, ehp, etype_id, flags = struct.unpack('!fffBB', payload[offset:offset+14])
                     enemy_type = {1: "tumor", 2: "bacteria", 3: "virus", 4: "caillot"}.get(etype_id, "tumor")
@@ -188,6 +188,7 @@ class Network:
                     "player_attack": attack,
                     "facing_left": facing_left,
                     "moving": moving,
+                    "total_kills": total_kills,
                 })
             elif packet_type == 3:
                 # [Lobby] header(1) + ready(?) + name_len(B) + name bytes
@@ -211,7 +212,7 @@ class Network:
     # =========================================================================
     #                       ENVOI DE DONNÉES
     # =========================================================================
-    def send_position(self, x, y, player_health=100.0, enemies=None, other_player_health=100.0, player_attack=False, victory=False, room_x=0, room_y=0, facing_left=False, moving=False):
+    def send_position(self, x, y, player_health=100.0, enemies=None, other_player_health=100.0, player_attack=False, victory=False, room_x=0, room_y=0, facing_left=False, moving=False, total_kills=0):
         if not self.connected:
             return
             
@@ -220,7 +221,7 @@ class Network:
                 # Packet Type 2
                 victory = bool(victory) if victory is not None else False
                 num_e = len(enemies) if enemies else 0
-                payload = struct.pack('!Bffff?BBB???', 2, float(x), float(y), float(player_health), float(other_player_health), victory, num_e, int(room_x), int(room_y), bool(player_attack), bool(facing_left), bool(moving))
+                payload = struct.pack('!Bffff?BBB???H', 2, float(x), float(y), float(player_health), float(other_player_health), victory, num_e, int(room_x), int(room_y), bool(player_attack), bool(facing_left), bool(moving), int(total_kills))
                 
                 if enemies:
                     for e in enemies:
