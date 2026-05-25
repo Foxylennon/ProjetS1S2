@@ -26,10 +26,7 @@ def game_multiplayer(dm, network):
         player = Player(280, 140, player_id=2, name="P2")
         other_player = Player(0, 0, player_id=1, name="P1")
 
-    map_seed = network.other_player_pos.get("map_seed", 42) if not network.is_host else network.other_player_pos.get("map_seed", random.randint(0, 1000000))
-    if network.is_host:
-        network.other_player_pos["map_seed"] = map_seed
-
+    map_seed = network.other_player_pos.get("map_seed", 42)
     random.seed(map_seed)
     game_map = Map(3, 3)
     game_map.create_map()
@@ -174,10 +171,7 @@ def game_multiplayer(dm, network):
                             if not player.is_alive():
                                 game_over = True
 
-                        if "x" in other_pos and "y" in other_pos:
-                            other_rect = pygame.Rect(other_pos["x"], other_pos["y"], 16, 16)
-                            if enemy.attack_can_hit(other_rect):
-                                other_player_health = enemy.deal_damage_to_player(other_player_health)
+                        # Le client gère lui-même ses propres dégâts via l'animation synchronisée.
 
                         if player.check_attack_hit(enemy.rect, active_obstacles):
                             enemy.take_damage(player.attack_damage)
@@ -244,6 +238,12 @@ def game_multiplayer(dm, network):
                             existing.facing_left = e_data.get("facing_left", existing.facing_left)
                             existing.previous_horizontal = existing.facing_left
                             existing.moving = e_data.get("moving", existing.moving)
+                            
+                            is_attacking = e_data.get("attacking", False)
+                            if is_attacking and existing.state != "attacking":
+                                existing._open_attack()
+                                existing._update_attack_rect()
+                                
                             new_enemies.append(existing)
                         else:
                             new_enemy = Enemy(e_data.get("x", 0), e_data.get("y", 0), monster_type=e_type)
@@ -251,6 +251,11 @@ def game_multiplayer(dm, network):
                             new_enemy.facing_left = e_data.get("facing_left", False)
                             new_enemy.previous_horizontal = new_enemy.facing_left
                             new_enemy.moving = e_data.get("moving", False)
+                            
+                            if e_data.get("attacking", False):
+                                new_enemy._open_attack()
+                                new_enemy._update_attack_rect()
+                                
                             new_enemies.append(new_enemy)
                     
                     current_room.enemies = new_enemies
@@ -263,8 +268,12 @@ def game_multiplayer(dm, network):
                 current_room.is_cleared = len(current_room.enemies) == 0
                 for door in current_room.doors:
                     door.is_locked = not current_room.is_cleared
-                if "other_player_health" in other_pos:
-                    player.health = other_pos["other_player_health"]
+                
+                # Le client gère ses propres dégâts
+                for enemy in current_room.enemies:
+                    if enemy.attack_can_hit(player.rect):
+                        player.health = enemy.deal_damage_to_player(player.health)
+
                 if "victory" in other_pos:
                     victory = other_pos["victory"]
 
@@ -294,7 +303,7 @@ def game_multiplayer(dm, network):
 
         if network.is_host:
             enemy_data = [
-                {"x": enemy.x, "y": enemy.y, "health": enemy.health, "type": enemy.monster_type, "facing_left": enemy.facing_left, "moving": enemy.moving}
+                {"x": enemy.x, "y": enemy.y, "health": enemy.health, "type": enemy.monster_type, "facing_left": enemy.facing_left, "moving": enemy.moving, "attacking": enemy.attacking}
                 for enemy in current_room.enemies
             ]
             network.send_position(
@@ -344,6 +353,8 @@ def game_multiplayer(dm, network):
                 other_player_health = other_pos["player_health"]
             else:
                 other_player_health = other_pos.get("player_health", other_player_health)
+            other_player.health = other_player_health
+            
         if "lobby_name" in other_pos and other_pos["lobby_name"]:
             other_player.display_name = other_pos["lobby_name"]
 

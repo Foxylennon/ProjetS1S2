@@ -164,13 +164,15 @@ class Network:
                     enemy_type = {1: "tumor", 2: "bacteria", 3: "virus", 4: "caillot"}.get(etype_id, "tumor")
                     e_facing = bool(flags & 1)
                     e_moving = bool(flags & 2)
+                    e_attacking = bool(flags & 4)
                     enemies.append({
                         "x": ex, 
                         "y": ey, 
                         "health": ehp, 
                         "type": enemy_type,
                         "facing_left": e_facing,
-                        "moving": e_moving
+                        "moving": e_moving,
+                        "attacking": e_attacking
                     })
                     offset += 14
                     
@@ -223,7 +225,7 @@ class Network:
                 if enemies:
                     for e in enemies:
                         type_id = {"tumor": 1, "bacteria": 2, "virus": 3, "caillot": 4}.get(e.get('type', 'tumor'), 1)
-                        flags = (1 if e.get('facing_left', False) else 0) | ((1 if e.get('moving', False) else 0) << 1)
+                        flags = (1 if e.get('facing_left', False) else 0) | ((1 if e.get('moving', False) else 0) << 1) | ((1 if e.get('attacking', False) else 0) << 2)
                         payload += struct.pack('!fffBB', float(e['x']), float(e['y']), float(e['health']), type_id, flags)
                 
                 packet_len = len(payload)

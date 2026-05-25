@@ -392,7 +392,9 @@ def multiplayer_lobby(dm, network):
                     joined = network.connected
                     remote_ready = network.other_player_pos.get("lobby_ready", False)
                     if joined and remote_ready:
-                        network.send_start_game(random.randint(0, 1000000))
+                        seed = random.randint(0, 1000000)
+                        network.other_player_pos["map_seed"] = seed
+                        network.send_start_game(seed)
                         return "game_multi"
 
                 if not network.is_host and btn_ready.is_clicked(mouse_pos, True):
