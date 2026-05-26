@@ -1,18 +1,91 @@
 import pygame
 from config import settings
 
-FONT_PATH = "assets/fonts/PressStart2P-Regular.ttf"
+FONT_PATH = "assets/fonts/PressStart2P.ttf"
+BODY_FONT_PATH = "assets/fonts/PixelOperator.ttf"
+
 
 def load_font(size):
     """
-    Charge une police avec une taille fixe.
-    Utilise une taille minimale de 6.
+    Charge une police de type UI / titres.
     """
     scaled_size = max(6, int(size))
     try:
         return pygame.font.Font(FONT_PATH, scaled_size)
     except Exception:
         return pygame.font.SysFont(None, scaled_size)
+
+
+def load_body_font(size):
+    """
+    Charge la police pour les textes corps (indicateurs, notes, labels secondaires).
+    """
+    scaled_size = max(6, int(size))
+    try:
+        return pygame.font.Font(BODY_FONT_PATH, scaled_size)
+    except Exception:
+        return pygame.font.SysFont(None, scaled_size)
+
+
+class Dropdown:
+    """Menu déroulant avec support des flèches clavier."""
+    def __init__(self, x, y, width, height, options, selected_index=0, font=None):
+        self.rect = pygame.Rect(x, y, width, height)
+        self.options = options
+        self.selected_index = selected_index
+        self.is_open = False
+        self.font = font
+
+    @property
+    def selected(self):
+        return self.options[self.selected_index]
+
+    def draw(self, surface):
+        color = (70, 70, 70)
+        hover_color = (100, 100, 100)
+        pygame.draw.rect(surface, color, self.rect, border_radius=6)
+        pygame.draw.rect(surface, (180, 180, 180), self.rect, 2, border_radius=6)
+
+        label = self.selected[0]
+        text_surf = self.font.render(label, False, (255, 255, 255))
+        surface.blit(text_surf, text_surf.get_rect(midleft=(self.rect.x + 12, self.rect.centery)))
+
+        arrow = "▼" if not self.is_open else "▲"
+        arrow_surf = self.font.render(arrow, False, (255, 255, 255))
+        surface.blit(arrow_surf, arrow_surf.get_rect(midright=(self.rect.right - 12, self.rect.centery)))
+
+        if self.is_open:
+            for i, (label, _) in enumerate(self.options):
+                option_rect = pygame.Rect(self.rect.x, self.rect.y + (i + 1) * self.rect.height, self.rect.width, self.rect.height)
+                pygame.draw.rect(surface, hover_color if i == self.selected_index else color, option_rect, border_radius=6)
+                pygame.draw.rect(surface, (180, 180, 180), option_rect, 2, border_radius=6)
+                text_surf = self.font.render(label, False, (255, 255, 255))
+                surface.blit(text_surf, text_surf.get_rect(midleft=(option_rect.x + 12, option_rect.centery)))
+
+    def handle_click(self, mouse_pos):
+        """Retourne 'toggle' si clic sur header, 'select' si clic sur option, sinon None."""
+        if self.rect.collidepoint(mouse_pos):
+            self.is_open = not self.is_open
+            return 'toggle'
+
+        if self.is_open:
+            for i, _ in enumerate(self.options):
+                option_rect = pygame.Rect(self.rect.x, self.rect.y + (i + 1) * self.rect.height, self.rect.width, self.rect.height)
+                if option_rect.collidepoint(mouse_pos):
+                    self.selected_index = i
+                    self.is_open = False
+                    return 'select'
+        return None
+
+    def navigate_keyboard(self, key):
+        """Navigue dans le dropdown avec les flèches clavier."""
+        if not self.is_open:
+            return
+        if key == pygame.K_UP:
+            self.selected_index = max(0, self.selected_index - 1)
+        elif key == pygame.K_DOWN:
+            self.selected_index = min(len(self.options) - 1, self.selected_index + 1)
+
 
 class Button:
     """

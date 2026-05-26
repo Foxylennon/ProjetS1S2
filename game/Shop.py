@@ -1,5 +1,5 @@
 import pygame
-from ui.UI_utils import load_font
+from ui.UI_utils import Button, load_font
 from lang import t
 
 class ShopCard:
@@ -121,6 +121,7 @@ class ShopMenu:
         ]
 
         self.cards = []
+        self.leave_button = Button(self.virtual_res[0] - 160, self.virtual_res[1] - 60, 140, 44, t("button_leave"), self.font_small, color=(100, 70, 70), hover_color=(130, 90, 90))
         
         # Setup layout
         card_w, card_h = 240, 340
@@ -147,6 +148,11 @@ class ShopMenu:
             card.update(mouse_pos)
             if card.is_hovered:
                 hovered_card = card
+
+        self.leave_button.update(mouse_pos)
+        if mouse_clicked and self.leave_button.is_clicked(mouse_pos, True):
+            self.is_open = False
+            return current_score
 
         buy_attempted = mouse_clicked and hovered_card is not None and not hovered_card.purchased
 
@@ -186,3 +192,5 @@ class ShopMenu:
         # Cards
         for card in self.cards:
             card.draw(surface)
+
+        self.leave_button.draw(surface)

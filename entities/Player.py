@@ -5,6 +5,7 @@ CLASSE JOUEUR - SIMPLIFIÉ
 import os
 
 import pygame
+from config import settings
 from entities.Wall import check_wall_collision
 
 
@@ -205,67 +206,110 @@ class Player:
         self.attack_frame_durations = self.attack_animations[0]['frame_durations']
         self.attack_total_duration_ms = self.attack_animations[0]['total_duration']
 
+        # Dash / esquive
+        self.dashing = False
+        self.dash_time_remaining_ms = 0
+        self.dash_cooldown_ms = 1000
+        self.dash_cooldown_remaining_ms = 0
+        self.dash_duration_ms = 100
+        self.dash_speed = 700
+        self.dash_vector = pygame.Vector2(0, 0)
+
+        dash_path = os.path.join(assets_dir, f"p{self.player_id}-dash.png")
+        try:
+            dash_image = pygame.image.load(dash_path)
+        except Exception:
+            dash_image = pygame.Surface(self.sprite_size, pygame.SRCALPHA)
+            dash_image.fill((255, 255, 255, 90))
+
+        self.dash_image = _zoom_crop(dash_image, self.sprite_size, self.sprite_scale)
+        self.dash_image_left = pygame.transform.flip(self.dash_image, True, False)
+
         self.color = (255, 255, 0)
     
     def handle_input(self, keys, walls=None, dt_ms=0):
         """Gère le déplacement du joueur."""
         dx = 0
         dy = 0
-        
-        # DROITE (flèche droite OU D OU touche D azerty)
-        if keys[pygame.K_RIGHT] or keys[pygame.K_d]:
-            dx = self.speed
-            self.direction = 0
-            self.previous_horizontal = 0
-        
-        # GAUCHE (flèche gauche OU A OU Q azerty)
-        if keys[pygame.K_LEFT] or keys[pygame.K_a] or keys[pygame.K_q]:
-            dx = -self.speed
-            self.direction = 1
-            self.previous_horizontal = 1
-        
-        # BAS (flèche bas OU S)
-        if keys[pygame.K_DOWN] or keys[pygame.K_s]:
-            dy = self.speed
-            self.direction = 2
-        
-        # HAUT (flèche haut OU W OU Z azerty)
-        if keys[pygame.K_UP] or keys[pygame.K_w] or keys[pygame.K_z]:
-            dy = -self.speed
-            self.direction = 3
-        
-        # Détecte si une touche de déplacement est enfoncée (pour animer)
-        self.moving = any(
-            [
-                keys[pygame.K_RIGHT],
-                keys[pygame.K_d],
-                keys[pygame.K_LEFT],
-                keys[pygame.K_a],
-                keys[pygame.K_q],
-                keys[pygame.K_DOWN],
-                keys[pygame.K_s],
-                keys[pygame.K_UP],
-                keys[pygame.K_w],
-                keys[pygame.K_z],
-            ]
-        )
 
-        if dt_ms > 0:
-            dx *= (dt_ms / 1000.0)
-            dy *= (dt_ms / 1000.0)
+        layout = settings.get("keyboard_layout", "azerty")
+        qwerty = layout == "qwerty"
+
+        right_pressed = keys[pygame.K_RIGHT] or keys[pygame.K_d]
+        left_pressed = keys[pygame.K_LEFT] or (keys[pygame.K_a] if qwerty else keys[pygame.K_q])
+        down_pressed = keys[pygame.K_DOWN] or keys[pygame.K_s]
+        up_pressed = keys[pygame.K_UP] or (keys[pygame.K_w] if qwerty else keys[pygame.K_z])
+        dash_pressed = keys[pygame.K_LSHIFT] or keys[pygame.K_RSHIFT]
+
+        if dash_pressed and self.dash_cooldown_remaining_ms <= 0 and not self.dashing:
+            dash_x = 0
+            dash_y = 0
+            if right_pressed:
+                dash_x += 1
+            if left_pressed:
+                dash_x -= 1
+            if down_pressed:
+                dash_y += 1
+            if up_pressed:
+                dash_y -= 1
+
+            if dash_x == 0 and dash_y == 0:
+                if self.direction == 0:
+                    dash_x = 1
+                elif self.direction == 1:
+                    dash_x = -1
+                elif self.direction == 2:
+                    dash_y = 1
+                else:
+                    dash_y = -1
+
+            self.dash_vector = pygame.Vector2(dash_x, dash_y)
+            if self.dash_vector.length_squared() == 0:
+                self.dash_vector = pygame.Vector2(1, 0)
+            self.dash_vector = self.dash_vector.normalize()
+            self.dashing = True
+            self.dash_time_remaining_ms = self.dash_duration_ms
+            self.dash_cooldown_remaining_ms = self.dash_cooldown_ms
+
+        if self.dashing:
+            self.moving = True
+            distance = self.dash_speed * (dt_ms / 1000.0) if dt_ms > 0 else 0
+            dx = self.dash_vector.x * distance
+            dy = self.dash_vector.y * distance
+        else:
+            if right_pressed:
+                dx = self.speed
+                self.direction = 0
+                self.previous_horizontal = 0
+            if left_pressed:
+                dx = -self.speed
+                self.direction = 1
+                self.previous_horizontal = 1
+            if down_pressed:
+                dy = self.speed
+                self.direction = 2
+            if up_pressed:
+                dy = -self.speed
+                self.direction = 3
+
+            self.moving = any([right_pressed, left_pressed, down_pressed, up_pressed])
+
+            if dt_ms > 0:
+                dx *= (dt_ms / 1000.0)
+                dy *= (dt_ms / 1000.0)
 
         # Collision avec les murs
         if walls is not None and (dx != 0 or dy != 0):
             dx, dy = check_wall_collision(self.rect, walls, dx, dy)
-        
+
         # Appliquer le déplacement
         self.x += dx
         self.y += dy
-        
+
         # Limites de l'écran
         self.x = max(0, min(self.x, 1280 - self.width))
         self.y = max(0, min(self.y, 720 - self.height))
-        
+
         # Mettre à jour le rectangle
         self.rect.x = int(self.x)
         self.rect.y = int(self.y)
@@ -313,6 +357,14 @@ class Player:
         # Cooldown d'attaque (ms)
         if self.attack_cooldown_ms > 0:
             self.attack_cooldown_ms = max(0, self.attack_cooldown_ms - dt_ms)
+
+        # Cooldown et durée du dash
+        if self.dash_cooldown_remaining_ms > 0:
+            self.dash_cooldown_remaining_ms = max(0, self.dash_cooldown_remaining_ms - dt_ms)
+        if self.dashing:
+            self.dash_time_remaining_ms = max(0, self.dash_time_remaining_ms - dt_ms)
+            if self.dash_time_remaining_ms <= 0:
+                self.dashing = False
 
         # Animation d'attaque (durée liée au gif)
         if self.attacking:
@@ -390,7 +442,9 @@ class Player:
     
     def draw(self, surface):
         # Sprite du joueur (idle / marche / attaque)
-        if self.attacking and (self.attack_frames_right or self.attack_frames_left):
+        if self.dashing:
+            image = self.dash_image_left if self.previous_horizontal == 1 else self.dash_image
+        elif self.attacking and (self.attack_frames_right or self.attack_frames_left):
             frames = self.attack_frames_left if self.previous_horizontal == 1 else self.attack_frames_right
             elapsed = min(self.attack_time_elapsed_ms, self.attack_total_duration_ms)
 

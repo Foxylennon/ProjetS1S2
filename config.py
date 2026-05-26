@@ -7,4 +7,5 @@ Ce module contient des paramètres modifiables depuis l'interface "Settings".
 settings = {
     "resolution": (1280, 720),
     "language": "en",
+    "keyboard_layout": "azerty",
 }

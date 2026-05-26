@@ -50,3 +50,24 @@ Ce qui change :
 - Correction de lecture des animations des monstres (notamment les gifs "wasd") en cours...
 - Modifications sur le profil pendant la partie (UI)
 - Suppression du paramètre "taille du texte", il s'avère moche..
+
+### 26/05/26
+Ce qui change :
+- màj du titre : désormais une image ! :D
+- ajout des polices par doute de choix dsl
+    - 'PixelOpertor' est désormais la police de corps par défaut
+    - 'PressStart2P' reste pour les titres et les boutons
+- correction de l'interface multijoueur
+    - page lobby prête!
+- ajout d'une indication "Chargement"
+- màj langues
+    - EN et FR sont désormais faciles à basculer :D
+    - FR : suppression des accents pour la lisibilité avec 'PressStart2P'
+- correction de l'interface de la page Paramètres
+- ajout d'un paramètre "Disposition clavier" pour basculer entre ZQSD et WASD
+
+- le joueur peut dash avec la touche MAJ !
+- correction de l'interface en partie
+- correction du cooldown
+    auparavant 1s dans le jeu vaut 2s réelles bruv
+- bazar de Chrom : ajout du bouton "Merci" pour quitter son shop :3

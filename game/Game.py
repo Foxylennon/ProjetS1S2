@@ -12,7 +12,7 @@ from entities.Player import Player
 from entities.Enemy import Enemy
 from entities.Map import Map
 
-from ui.UI_utils import Button, load_font
+from ui.UI_utils import Button, load_body_font, load_font
 from game.Shop import ShopMenu
 
 
@@ -26,7 +26,7 @@ def game(dm):
     # player profile
     profile_img_orig = None
     try:
-        profile_img_orig = pygame.image.load("assets/ui/profile-p1.png").convert_alpha()
+        profile_img_orig = pygame.image.load("assets/ui/profil-p1.png").convert_alpha()
     except Exception:
         profile_img_orig = None
 
@@ -56,11 +56,13 @@ def game(dm):
         return ng
 
     nav_grid = get_nav_grid(game_map.get_current_room())
+    show_controls_hint = True
     
     # fonts
     font = load_font(32)
     font_big = load_font(56)
     font_small = load_font(18)
+    font_body = load_body_font(18)
 
     # background image
     play_bg = None
@@ -156,6 +158,7 @@ def game(dm):
                     game_map.change_room(door, player, dm.virtual_res[0], dm.virtual_res[1])
                     current_room = game_map.get_current_room()
                     nav_grid = get_nav_grid(current_room)
+                    show_controls_hint = False
                     break
 
             # Mouvement du joueur (attention aux murs + portes verrouillées)
@@ -168,7 +171,7 @@ def game(dm):
                 if enemy.is_alive() or not enemy.is_faint_animation_complete():
                     spawned_enemies.extend(enemy.update(player.rect, active_obstacles, dt, nav_grid, current_room.enemies))
 
-                    if enemy.attack_can_hit(player.rect):
+                    if enemy.attack_can_hit(player.rect) and not player.dashing:
                         player.health = enemy.deal_damage_to_player(player.health)
                         if not player.is_alive():
                             game_over = True
@@ -285,19 +288,43 @@ def game(dm):
             profile_with_alpha.set_alpha(77)  # 30% de 255
             dm.canvas.blit(profile_with_alpha, (profile_x, profile_y))
 
-        # Barre de PV diagonale "\" à droite du profil
-        bar_length = 100
-        bar_x = profile_x + (profile_size[0] if profile_size[0] > 0 else 0) + 10
-        bar_y = profile_y + (profile_size[1] if profile_size[1] > 0 else 24) // 2
-        health_ratio = player.health / player.max_health
-        pygame.draw.line(dm.canvas, (255, 0, 0), (bar_x, bar_y), (bar_x + bar_length, bar_y - bar_length), 3)  # Ligne rouge diagonale
-        fill_length = int(bar_length * health_ratio)
-        pygame.draw.line(dm.canvas, (0, 255, 0), (bar_x, bar_y), (bar_x + fill_length, bar_y - fill_length), 3)  # Ligne verte
+        # Barre de PV superposée sur le profil
+        bar_width = 120
+        bar_height = 14
+        bar_x = profile_x + 3
+        bar_y = profile_y + (profile_size[1] if profile_size[1] > 0 else 24) - bar_height - 3
+        health_ratio = (player.health / player.max_health) if player.max_health else 0
+        health_ratio = max(0.0, min(1.0, health_ratio))
+
+        bg_rect = pygame.Rect(bar_x, bar_y, bar_width, bar_height)
+        fg_rect = pygame.Rect(bar_x, bar_y, int(bar_width * health_ratio), bar_height)
+
+        pygame.draw.rect(dm.canvas, (255, 0, 0), bg_rect, border_radius=6)
+        if fg_rect.width > 0:
+            pygame.draw.rect(dm.canvas, (0, 220, 0), fg_rect, border_radius=6)
+        pygame.draw.rect(dm.canvas, (80, 80, 80), bg_rect, 2, border_radius=6)
 
         # Texte HP au-dessus du profil
         hp_text = font.render(f"{t('hp_label')} {player.health}/{player.max_health}", False, (255, 255, 255))
         hp_pos = (profile_x, profile_y - hp_text.get_height() - 5)
         dm.canvas.blit(hp_text, hp_pos)
+
+        # Indicateur de dash en carré à droite de la barre de PV
+        dash_size = 14
+        dash_x = bar_x + bar_width + 8
+        dash_y = bar_y
+        dash_box = pygame.Rect(dash_x, dash_y, dash_size, dash_size)
+        pygame.draw.rect(dm.canvas, (60, 60, 60), dash_box, border_radius=4)
+        if player.dash_cooldown_ms:
+            fill_ratio = 1.0 - (player.dash_cooldown_remaining_ms / player.dash_cooldown_ms)
+        else:
+            fill_ratio = 1.0
+        fill_ratio = max(0.0, min(1.0, fill_ratio))
+        fill_h = int(dash_size * fill_ratio)
+        fill_rect = pygame.Rect(dash_x, dash_y + dash_size - fill_h, dash_size, fill_h)
+        if fill_h > 0:
+            pygame.draw.rect(dm.canvas, (120, 180, 255), fill_rect, border_radius=4)
+        pygame.draw.rect(dm.canvas, (80, 80, 80), dash_box, 2, border_radius=4)
 
         # Score en bas à droite du profil
         score_text = font.render(f"* {score}", False, (255, 255, 255))
@@ -305,7 +332,7 @@ def game(dm):
         dm.canvas.blit(score_text, score_pos)
 
         # Temps écoulé (ne s'incrémente plus après game over)
-        seconds = int(time_elapsed_ms / 1000)
+        seconds = int(time_elapsed_ms / 500)
         minutes = seconds // 60
         seconds = seconds % 60
         time_text = font.render(f"{t('time_label')} {minutes:02d}:{seconds:02d}", False, (255, 255, 255))
@@ -314,8 +341,11 @@ def game(dm):
         # Bouton pause
         btn_pause.draw(dm.canvas)
 
-        controls = font.render(t("controls_hint"), False, (150, 150, 150))
-        dm.canvas.blit(controls, (150, 160))
+        if show_controls_hint:
+            layout = settings.get("keyboard_layout", "azerty")
+            controls_key = t("controls_hint_qwerty") if layout == "qwerty" else t("controls_hint_azerty")
+            controls = font_body.render(controls_key, False, (150, 150, 150))
+            dm.canvas.blit(controls, (150, 160))
 
         # Game Over
         if game_over:
