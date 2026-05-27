@@ -10,7 +10,7 @@ from entities.Player import Player
 from entities.Enemy import Enemy
 from entities.Map import Map
 
-from ui.UI_utils import Button, load_font
+from ui.UI_utils import Button, load_body_font, load_font
 from game.Shop import ShopMenu
 
 
@@ -61,6 +61,7 @@ def game_multiplayer(dm, network):
     # Polices
     font = load_font(32)
     font_big = load_font(56)
+    font_body = load_body_font(18)
 
     # background image
     play_bg = None
@@ -167,7 +168,7 @@ def game_multiplayer(dm, network):
                         target_rect = get_closest_target(player.rect, other_pos, enemy.rect)
                         spawned_enemies.extend(enemy.update(target_rect, active_obstacles, dt, nav_grid, current_room.enemies))
 
-                        if enemy.attack_can_hit(player.rect):
+                        if enemy.attack_can_hit(player.rect) and not player.dashing:
                             player.health = enemy.deal_damage_to_player(player.health)
                             if not player.is_alive():
                                 game_over = True
@@ -273,7 +274,7 @@ def game_multiplayer(dm, network):
                 
                 # Le client gère ses propres dégâts
                 for enemy in current_room.enemies:
-                    if enemy.attack_can_hit(player.rect):
+                    if enemy.attack_can_hit(player.rect) and not player.dashing:
                         player.health = enemy.deal_damage_to_player(player.health)
 
                 if "victory" in other_pos:
@@ -401,8 +402,11 @@ def game_multiplayer(dm, network):
         else:
             dm.canvas.blit(font.render(f"Host: {other_player_health}", False, (150, 100, 100)), (12, 38))
 
+        dash_text = font_body.render(f"{t('dash_label')} [{int(player.dash_cooldown_remaining_ms/1000 + 0.9)}s]" if player.dash_cooldown_remaining_ms > 0 else t('dash_label'), False, (180, 180, 255))
+        dm.canvas.blit(dash_text, (12, 60))
+
         score_text = font.render(f"* {score}", False, (255, 255, 255))
-        dm.canvas.blit(score_text, (12, 60))
+        dm.canvas.blit(score_text, (12, 84))
 
         if game_over:
             overlay = pygame.Surface(dm.canvas.get_size())

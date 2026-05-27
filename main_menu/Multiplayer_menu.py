@@ -24,7 +24,17 @@ import pygame
 import socket
 import threading
 import random
-from ui.UI_utils import Button, load_font
+from lang import t
+from ui.UI_utils import Button, load_body_font, load_font
+
+
+def get_local_ip():
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.connect(("8.8.8.8", 80))
+            return s.getsockname()[0]
+    except Exception:
+        return "127.0.0.1"
 
 
 def multiplayer_menu(dm, network):
@@ -46,6 +56,7 @@ def multiplayer_menu(dm, network):
     font_big = load_font(56)
     font_medium = load_font(32)
     font_small = load_font(26)
+    font_body = load_body_font(24)
     
     def get_local_ip():
         try:
@@ -76,9 +87,9 @@ def multiplayer_menu(dm, network):
     btn_width = 400
     btn_height = 60
     btn_x = (GAME_W - btn_width) // 2
-    btn_host = Button(btn_x, 240, btn_width, btn_height, "Créer partie", font_small, color=(70, 130, 70), hover_color=(90, 170, 90))
-    btn_join = Button(btn_x, 480, btn_width, btn_height, "Rejoindre", font_small, color=(70, 70, 130), hover_color=(100, 100, 170))
-    btn_back = Button(50, 600, btn_width // 2, int(btn_height // 1.5), "Retour", font_small, color=(60, 60, 60), hover_color=(90, 90, 90))
+    btn_host = Button(btn_x, 240, btn_width, btn_height, t("button_create_game"), font_small, color=(70, 130, 70), hover_color=(90, 170, 90))
+    btn_join = Button(btn_x, 480, btn_width, btn_height, t("button_join_game"), font_small, color=(70, 70, 130), hover_color=(100, 100, 170))
+    btn_back = Button(50, 600, btn_width // 2, int(btn_height // 1.5), t("button_back"), font_small, color=(60, 60, 60), hover_color=(90, 90, 90))
     input_rect = pygame.Rect((GAME_W - btn_width * 1.5) // 2, 360, int(btn_width * 1.5), btn_height)
     
     clock = pygame.time.Clock()
@@ -173,11 +184,14 @@ def multiplayer_menu(dm, network):
                     connection_result["done"] = False
                     connection_result["success"] = False
                     error_message = ""
-                    
-                    # Lancer le thread
+
+                    # Lancer le thread (démarre le serveur en arrière-plan)
                     network_thread = threading.Thread(target=host_thread_func)
                     network_thread.daemon = True
                     network_thread.start()
+
+                    # Rediriger immédiatement vers le lobby où l'on affichera l'attente
+                    return "lobby"
                 
                 # Clic sur "Rejoindre" (CLIENT)
                 if btn_join.is_clicked(mouse_pos, True) and not waiting_for_client and not connecting:
@@ -192,7 +206,7 @@ def multiplayer_menu(dm, network):
                         network_thread.daemon = True
                         network_thread.start()
                     else:
-                        error_message = "Entrez une IP valide!"
+                        error_message = t("error_invalid_ip")
                 
                 # Clic sur "Retour"
                 if btn_back.is_clicked(mouse_pos, True):
@@ -210,34 +224,34 @@ def multiplayer_menu(dm, network):
             else:
                 # Échec
                 if waiting_for_client:
-                    error_message = "Erreur serveur"
+                    error_message = t("error_server")
                 else:
-                    error_message = "Connexion échouée"
+                    error_message = t("error_connection_failed")
                 waiting_for_client = False
                 connecting = False
             connection_result["done"] = False
         
-        # ---------------------------------------------------------------------
-        #                    AFFICHAGE
-        # ---------------------------------------------------------------------
-        
         dm.canvas.fill((40, 40, 40))
         
         # --- Titre ---
-        title = font_big.render("MULTIJOUEUR", False, (255, 255, 255))
+        title = font_big.render(t("multiplayer_title"), False, (255, 255, 255))
         dm.canvas.blit(title, (btn_x, 60))
+        
+        if waiting_for_client or connecting:
+            loading_text = font_small.render(t("loading"), False, (200, 200, 200))
+            dm.canvas.blit(loading_text, (btn_x + btn_width + 20, 68))
         
         # --- Section HOST ---
         
         # Bouton Host
-        btn_host.text = "En attente..." if waiting_for_client else "Creer partie"
+        btn_host.text = t("button_waiting_host") if waiting_for_client else t("button_create_game")
         btn_host.color = (80, 80, 80) if waiting_for_client else (70, 130, 70)
         btn_host.hover_color = (120, 120, 120) if waiting_for_client else (90, 170, 90)
         btn_host.font = font_small
         btn_host.draw(dm.canvas)
         
         # Afficher notre IP
-        ip_label = font_small.render(f"Votre IP : {my_ip}", False, (150, 150, 150))
+        ip_label = font_body.render(f"{t('your_ip_label')} {my_ip}", False, (150, 150, 150))
         dm.canvas.blit(ip_label, (btn_x + 480, 250))
         
         # --- Section CLIENT ---
@@ -250,11 +264,11 @@ def multiplayer_menu(dm, network):
         ip_text = font_small.render(ip_input, False, (255, 255, 255))
         dm.canvas.blit(ip_text, (input_rect.x + 5, input_rect.y + 4))
         
-        ip_hint = font_small.render("IP du Host :", False, (150, 150, 150))
+        ip_hint = font_body.render(t("host_ip_label"), False, (150, 150, 150))
         dm.canvas.blit(ip_hint, (btn_x - 245, 365))
         
         # Bouton Rejoindre
-        btn_join.text = "Connexion..." if connecting else "Rejoindre"
+        btn_join.text = t("button_connecting") if connecting else t("button_join_game")
         btn_join.color = (80, 80, 80) if connecting else (70, 70, 130)
         btn_join.hover_color = (120, 120, 120) if connecting else (100, 100, 170)
         btn_join.font = font_small
@@ -270,7 +284,7 @@ def multiplayer_menu(dm, network):
         btn_back.draw(dm.canvas)
         
         # --- Instructions ---
-        instr = font_small.render("ESC = Annuler/Retour", False, (100, 100, 100))
+        instr = font_body.render(t("instruction_cancel_back"), False, (100, 100, 100))
         dm.canvas.blit(instr, (600, 1000))
         
         # --- Rendu ---
@@ -302,42 +316,41 @@ def multiplayer_lobby(dm, network):
     font_big = load_font(56)
     font_medium = load_font(32)
     font_small = load_font(26)
-    font_input = load_font(22)
+    font_body = load_body_font(26)
+    font_input = load_body_font(22)
 
-    # Chargement des avatars de profil
+    # Chargement des avatars de profil (réduit)
     profile_imgs = []
     profile_desat = []
     for idx in range(1, 5):
         try:
-            img = pygame.image.load(f"assets/ui/profile-p{idx}.png").convert_alpha()
+            img = pygame.image.load(f"assets/ui/profil-p{idx}.png").convert_alpha()
         except Exception:
             img = pygame.Surface((160, 160), pygame.SRCALPHA)
             img.fill((120, 120, 120))
-        scaled = pygame.transform.smoothscale(img, (170, 170))
+        scaled = pygame.transform.smoothscale(img, (160, 160))
         profile_imgs.append(scaled)
         profile_desat.append(_create_desaturated(scaled))
 
     names = [f"P{i}" for i in range(1, 5)]
     input_rects = []
     slot_rects = []
-    start_x = 100
-    start_y = 200
-    slot_w = 240
-    slot_h = 290
-    gap_x = 100
-    gap_y = 0
+    start_x = 70
+    start_y = 280
+    slot_w = 220
+    slot_h = 260
+    gap_x = 30
 
-    for row in range(2):
-        for col in range(2):
-            index = row * 2 + col
-            x = start_x + (slot_w + gap_x) * col
-            y = start_y + (slot_h + gap_y) * row
-            slot_rects.append(pygame.Rect(x, y, slot_w, slot_h))
-            input_rects.append(pygame.Rect(x + 10, y - 50, slot_w - 20, 38))
+    # Disposer les 4 emplacements sur une même ligne
+    for col in range(4):
+        x = start_x + (slot_w + gap_x) * col
+        y = start_y
+        slot_rects.append(pygame.Rect(x, y, slot_w, slot_h))
+        input_rects.append(pygame.Rect(x + 10, y - 36, slot_w - 20, 34))
 
-    btn_back = Button(50, 660, 140, 42, "Retour", font_small, color=(60, 60, 60), hover_color=(90, 90, 90))
-    btn_start = Button(0, 0, 200, 50, "Commencer", font_small, color=(70, 130, 70), hover_color=(90, 170, 90))
-    btn_ready = Button(0, 0, 150, 44, "Prêt", font_small, color=(70, 130, 70), hover_color=(90, 170, 90))
+    btn_back = Button(50, 660, 140, 42, t("button_back"), font_small, color=(60, 60, 60), hover_color=(90, 90, 90))
+    btn_start = Button(0, 0, 200, 50, t("button_start"), font_small, color=(70, 130, 70), hover_color=(90, 170, 90))
+    btn_ready = Button(0, 0, 150, 44, t("button_ready"), font_small, color=(70, 130, 70), hover_color=(90, 170, 90))
 
     clock = pygame.time.Clock()
     active_input = None
@@ -421,10 +434,14 @@ def multiplayer_lobby(dm, network):
 
         dm.canvas.fill((35, 35, 35))
 
-        title = font_big.render("LOBBY", False, (255, 255, 255))
-        dm.canvas.blit(title, (start_x, 40))
+        title = font_big.render(t("lobby_title"), False, (255, 255, 255))
+        title_rect = title.get_rect(topleft=(start_x, 40))
+        dm.canvas.blit(title, title_rect)
 
-        subtitle = font_small.render("Attendez que les invités soient prêts avant de commencer.", False, (200, 200, 200))
+        ip_text = font_small.render(f"{t('your_ip_label')} {get_local_ip()}", False, (180, 180, 180))
+        dm.canvas.blit(ip_text, (title_rect.right + 20, title_rect.y + 12))
+
+        subtitle = font_body.render(t("lobby_subtitle"), False, (200, 200, 200))
         dm.canvas.blit(subtitle, (start_x, 110))
 
         for idx, slot_rect in enumerate(slot_rects):
@@ -461,7 +478,7 @@ def multiplayer_lobby(dm, network):
 
             # Profile image
             image = profile_imgs[idx] if joined else profile_desat[idx]
-            image_rect = image.get_rect(center=(slot_rect.centerx, slot_rect.y + 140))
+            image_rect = image.get_rect(center=(slot_rect.centerx, slot_rect.y + slot_h // 2 - 10))
             dm.canvas.blit(image, image_rect.topleft)
 
             # Prêt checkbox
@@ -479,7 +496,7 @@ def multiplayer_lobby(dm, network):
             # Boutons locaux
             if idx == 0 and network.is_host:
                 btn_start.rect.topleft = (slot_rect.centerx - btn_start.rect.width // 2, slot_rect.bottom - 60)
-                btn_start.text = "Commencer"
+                btn_start.text = t("button_start")
                 if not joined or not ready or not network.connected or not network.other_player_pos.get("lobby_ready", False):
                     btn_start.color = (80, 80, 80)
                     btn_start.hover_color = (100, 100, 100)
@@ -490,17 +507,17 @@ def multiplayer_lobby(dm, network):
 
             if idx == 1 and not network.is_host:
                 btn_ready.rect.topleft = (slot_rect.centerx - btn_ready.rect.width // 2, slot_rect.bottom - 54)
-                btn_ready.text = "Prêt" if local_ready else "En attente"
+                btn_ready.text = t("button_ready") if local_ready else t("button_wait")
                 btn_ready.color = (70, 130, 70) if local_ready else (120, 120, 120)
                 btn_ready.hover_color = (90, 170, 90) if local_ready else (140, 140, 140)
                 btn_ready.draw(dm.canvas)
 
-        status_text = "Hôte prêt — en attente d'un invité" if network.is_host and not network.other_player_pos.get("lobby_ready") else ""
+        status_text = t("status_host_waiting") if network.is_host and not network.other_player_pos.get("lobby_ready") else ""
         if status_text:
-            dm.canvas.blit(font_small.render(status_text, False, (200, 200, 200)), (start_x, 160))
+            dm.canvas.blit(font_body.render(status_text, False, (200, 200, 200)), (start_x, 160))
 
         btn_back.draw(dm.canvas)
-        dm.canvas.blit(font_small.render("Chaque emplacement peut être renommé au-dessus du portrait.", False, (180, 180, 180)), (start_x, 120))
+        dm.canvas.blit(font_body.render(t("lobby_slot_note"), False, (180, 180, 180)), (start_x, 140))
 
         dm.render()
         clock.tick(60)
