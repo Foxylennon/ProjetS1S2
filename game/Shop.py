@@ -1,6 +1,7 @@
 import pygame
 from ui.UI_utils import Button, load_font
 from lang import t
+from common.music_manager import music_manager
 
 class ShopCard:
     def __init__(self, x, y, width, height, bg_color, item_data, font, font_small):
@@ -166,6 +167,7 @@ class ShopMenu:
                     hovered_card.item_data["effect"](player)
                 
                 hovered_card.purchased = True
+                music_manager.play_buy()
                 
                 self.is_open = False # Close shop after buy
                 return new_score

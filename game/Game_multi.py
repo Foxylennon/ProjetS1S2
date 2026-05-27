@@ -12,6 +12,7 @@ from entities.Map import Map
 
 from ui.UI_utils import Button, load_body_font, load_font
 from game.Shop import ShopMenu
+from common.music_manager import music_manager
 
 
 def game_multiplayer(dm, network):
@@ -89,6 +90,7 @@ def game_multiplayer(dm, network):
     
     while True:
         dt = clock.tick(60)
+        music_manager.update()
 
         # Mettre à jour les polices des boutons
         btn_menu.font = font
@@ -129,7 +131,17 @@ def game_multiplayer(dm, network):
 
         keys = pygame.key.get_pressed()
         if shop_menu.is_open and not game_over and not victory:
+            music_manager.play_shop()
             score = shop_menu.update(mouse_pos, mouse_clicked, keys, player, score)
+        else:
+            if not game_over and not victory:
+                music_manager.play_game()
+
+        # Control footsteps running loop sound
+        if player.moving and not game_over and not victory and not shop_menu.is_open:
+            music_manager.start_run()
+        else:
+            music_manager.stop_run()
 
         enemies_killed_this_tick = 0
 

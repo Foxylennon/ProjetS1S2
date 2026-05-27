@@ -14,6 +14,7 @@ from entities.Map import Map
 
 from ui.UI_utils import Button, load_body_font, load_font
 from game.Shop import ShopMenu
+from common.music_manager import music_manager
 
 
 def game(dm):
@@ -92,6 +93,7 @@ def game(dm):
     
     while True:
         dt = clock.tick(60)
+        music_manager.update()
 
         # scaling btn text
         btn_menu.font = font
@@ -144,7 +146,17 @@ def game(dm):
             paused = not paused
 
         if shop_menu.is_open and not game_over and not paused:
+            music_manager.play_shop()
             score = shop_menu.update(mouse_pos, mouse_clicked, keys, player, score)
+        else:
+            if not game_over and not paused:
+                music_manager.play_game()
+
+        # Control footsteps running loop sound
+        if player.moving and not game_over and not paused and not shop_menu.is_open:
+            music_manager.start_run()
+        else:
+            music_manager.stop_run()
 
         if not game_over and not paused and not shop_menu.is_open:
             time_elapsed_ms += dt

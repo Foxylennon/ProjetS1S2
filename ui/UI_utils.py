@@ -1,5 +1,6 @@
 import pygame
 from config import settings
+from common.music_manager import music_manager
 
 FONT_PATH = "assets/fonts/PressStart2P.ttf"
 BODY_FONT_PATH = "assets/fonts/PixelOperator.ttf"
@@ -110,8 +111,14 @@ class Button:
 
     def update(self, mouse_pos):
         """Met à jour l'état de survol du bouton."""
+        was_hovered = self.is_hovered
         self.is_hovered = self.rect.collidepoint(mouse_pos)
+        if self.is_hovered and not was_hovered:
+            music_manager.play_hover()
 
     def is_clicked(self, mouse_pos, mouse_pressed):
         """Retourne vrai si le bouton est survolé et qu'un clic gauche a lieu."""
-        return self.rect.collidepoint(mouse_pos) and mouse_pressed
+        clicked = self.rect.collidepoint(mouse_pos) and mouse_pressed
+        if clicked:
+            music_manager.play_click()
+        return clicked

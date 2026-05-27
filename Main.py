@@ -32,6 +32,7 @@ from settings.Settings_menu import settings_menu
 from game.Game import game
 from game.Game_multi import game_multiplayer
 from network.Network import Network
+from common.music_manager import music_manager
 
 # --- CONFIGURATION ---
 GAME_W, GAME_H = 1280, 720  # Résolution virtuelle du jeu
@@ -166,27 +167,33 @@ def main():
         
         if state == "menu":
             # Menu principal
+            music_manager.play_menu()
             state = main_menu(display_manager)
         
         elif state == "game":
             # Jeu solo
+            music_manager.play_game(force_restart=True)
             state = game(display_manager)
         
         elif state == "multi_menu":
             # Menu multijoueur (choix Host/Client)
             # On recrée l'objet network pour une nouvelle connexion
+            music_manager.play_menu()
             network = Network()
             state = multiplayer_menu(display_manager, network)
         
         elif state == "lobby":
+            music_manager.play_menu()
             state = multiplayer_lobby(display_manager, network)
         
         elif state == "settings":
             # Page paramètres
+            music_manager.play_menu()
             state = settings_menu(display_manager)
 
         elif state == "game_multi":
             # Jeu multijoueur
+            music_manager.play_game(force_restart=True)
             state = game_multiplayer(display_manager, network)
         
         else:

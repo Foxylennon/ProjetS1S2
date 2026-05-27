@@ -7,6 +7,7 @@ import os
 import pygame
 from config import settings
 from entities.Wall import check_wall_collision
+from common.music_manager import music_manager
 
 
 def _load_gif_frames(path: str, return_durations: bool = False):
@@ -270,6 +271,7 @@ class Player:
             self.dashing = True
             self.dash_time_remaining_ms = self.dash_duration_ms
             self.dash_cooldown_remaining_ms = self.dash_cooldown_ms
+            music_manager.play_dash()
 
         if self.dashing:
             self.moving = True
@@ -330,6 +332,7 @@ class Player:
         self.attack_has_hit = False
         self.attack_frame_index = 0
         self.combo_attack_pressed = False
+        music_manager.play_sword()
 
         # Utiliser l'animation du combo actuel
         anim = self.attack_animations[self.combo_level]
